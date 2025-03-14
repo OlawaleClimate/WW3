@@ -201,7 +201,7 @@ CONTAINS
        TAUWY, TAUOX, TAUOY, TAUWIX, TAUWIY, TAUWNX,&
        TAUWNY, PHIAW, CHARN, TWS, PHIOC, WHITECAP, &
        D50, PSIC, BEDFORM , PHIBBL, TAUBBL, TAUICE,&
-       PHICE, TAUOCX, TAUOCY, WNMEAN, DAIR, COEF)
+       PHICE, TAUOCX, TAUOCY, WNMEAN, DAIR, COEF, VNL_e)
     !/
     !/                  +-----------------------------------+
     !/                  | WAVEWATCH III           NOAA/NCEP |
@@ -676,7 +676,8 @@ CONTAINS
          TAUWIX, TAUWIY, TAUWNX, TAUWNY,      &
          ICEF, TAUOCX, TAUOCY, WNMEAN
     REAL, INTENT(OUT)       :: DTDYN, FCUT
-    REAL, INTENT(IN)        :: COEF
+    REAL, INTENT(IN)        :: COEF 
+    REAL, INTENT(INOUT)::VNL_e(NSPEC)
     !/
     !/ ------------------------------------------------------------------- /
     !/ Local parameters
@@ -1220,11 +1221,16 @@ CONTAINS
       ! 2.b Nonlinear interactions.
       !
 #ifdef W3_NL1
-      IF (IQTPE.GT.0) THEN
-        CALL W3SNL1 ( SPEC, CG1, WNMEAN*DEPTH, VSNL, VDNL )
-      ELSE
-        CALL W3SNLGQM ( SPEC, CG1, WN1, DEPTH, VSNL, VDNL )
-      END IF
+
+!      IF (IQTPE.GT.0) THEN
+!        CALL W3SNL1 ( SPEC, CG1, WNMEAN*DEPTH, VSNL, VDNL )
+!      ELSE
+!        CALL W3SNLGQM ( SPEC, CG1, WN1, DEPTH, VSNL, VDNL )
+!      END IF
+   !    VNL_e = VSNL
+
+!ELSE
+        VSNL = VNL_e
 #endif
 #ifdef W3_NL2
       CALL W3SNL2 ( SPEC, CG1, DEPTH, VSNL, VDNL )
@@ -1445,6 +1451,7 @@ CONTAINS
                1. + NL5_OFFSET*AFAC*MIN(0.,VD(IS)) ) ) )
         ELSE
 #endif
+
           DT = MIN ( DT , AFAC / ( MAX ( 1.E-10,                  &
                1. + OFFSET*AFAC*MIN(0.,VD(IS)) ) ) )
 #ifdef W3_NL5

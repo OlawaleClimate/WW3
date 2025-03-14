@@ -249,6 +249,8 @@ PROGRAM W3SHEL
   ! 10. Source code :
   !
   !/ ------------------------------------------------------------------- /
+ USE ftorch
+ USE W3SNLMLMD
 
   use w3servmd, only : print_memcheck
 #ifdef W3_PDLIB
@@ -337,7 +339,10 @@ PROGRAM W3SHEL
        TIME0(2), TIMEN(2), TTIME(2), TTT(2),     &
        NH(-7:10), THO(2,-7:10,NHMAX), RCLD(7:9), &
        NODATA(7:9), ODAT(40), IPRT(6) = 0,       &
-       STARTDATE(8), STOPDATE(8), IHH(-7:10)
+       STARTDATE(8), STOPDATE(8), IHH(-7:10), NGPU
+  REAL :: mean_data(1802), std_data(1802), out_mean_data(1800), out_std_data(1800)
+    ! Set up types of input and output data
+type(torch_module) :: model
   !
 #ifdef W3_OASIS
   INTEGER             :: OASISED
@@ -398,6 +403,11 @@ PROGRAM W3SHEL
 #endif
   character(len=10)   :: jchar
   integer             :: memunit
+
+
+
+ 
+
   !
   !/
   !/ ------------------------------------------------------------------- /
@@ -510,6 +520,9 @@ PROGRAM W3SHEL
   call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 2')
   !
   !--- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Find GPU devices and set the device number
+!        NGPU = acc_get_num_devices(acc_device_nvidia)
+ !  print*, 'NGPU', NGPU
   ! 1.  IO set-up
   ! 1.a For shell
   !
@@ -1928,7 +1941,11 @@ PROGRAM W3SHEL
   !        CALL EXTCDE(666)
   !      ENDIF
 
-  call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 5')
+!load ml model and normalization data
+call ml_init(mean_data, std_data, out_mean_data, out_std_data, IAPROC, model)    
+
+
+call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 5')
   !
 #ifdef W3_TIDE
   IF (FLAGSTIDE(1)) CALL W3FLDTIDE2 ( 'READ',  NDSF(1), NDST, NDSEN, NX, NY, IDSTR(1), 1, IERR )
@@ -1986,7 +2003,7 @@ PROGRAM W3SHEL
 #ifdef W3_OASIS
          , .TRUE., .FALSE., MPI_COMM, TIMEN     &
 #endif
-         )
+       ,mean_data= mean_data, std_data=std_data, out_mean_data=out_mean_data, out_std_data=out_std_data, model=model)
     !
     GOTO 2222
     !
@@ -2584,7 +2601,7 @@ PROGRAM W3SHEL
 #ifdef W3_OASIS
        , .TRUE., .FALSE., MPI_COMM, TIMEN                         &
 #endif
-       )
+       ,mean_data= mean_data, std_data=std_data, out_mean_data=out_mean_data, out_std_data=out_std_data, model=model)
   call print_memcheck(memunit, 'memcheck_____:'//' WW3_SHEL SECTION 9')
   !
   ! The following lines prevents us from trying to read past the end
@@ -2627,7 +2644,7 @@ PROGRAM W3SHEL
 #ifdef W3_OASIS
            , .TRUE., .FALSE., MPI_COMM, TIMEN              &
 #endif
-           )
+       ,mean_data= mean_data, std_data=std_data, out_mean_data=out_mean_data, out_std_data=out_std_data, model=model)
     END IF
   END IF
   !
@@ -2641,6 +2658,7 @@ PROGRAM W3SHEL
   !--- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   !     End of shel
   !
+  call torch_module_delete(model)
   GOTO 2222
   !
   ! Error escape locations

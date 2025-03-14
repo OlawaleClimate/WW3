@@ -699,6 +699,7 @@ MODULE W3GRIDMD
   !
 #endif
   REAL, ALLOCATABLE       :: XGRDIN(:,:), YGRDIN(:,:)
+        REAL, ALLOCATABLE       :: XUGRDIN(:), YUGRDIN(:)
   REAL, ALLOCATABLE       :: ZBIN(:,:), OBSX(:,:), OBSY(:,:)
   REAL, ALLOCATABLE       :: REFD(:,:), REFD2(:,:), REFS(:,:)
 #ifdef W3_BT4
@@ -3700,11 +3701,11 @@ CONTAINS
       SOLVERTHR_STP = SOLVERTHR_SETUP
       CRIT_DEP_STP  = CRIT_DEP_SETUP
     END IF
-
     !
     ! 7.c Grid coordinates (branch here based on grid type)
     !
     IF ( GTYPE.NE.UNGTYPE) ALLOCATE ( XGRDIN(NX,NY), YGRDIN(NX,NY) )
+
     SELECT CASE ( GTYPE )
       !
       ! 7.c.1 Rectilinear grid
@@ -4153,8 +4154,18 @@ CONTAINS
 
       !       Calculate rotation angles; (StdLon/Lat are returned, but not used)
       !       The regular grid X/YGRDIN are used as equatorial lon and lat
+      IF (GTYPE.NE.UNGTYPE) THEN
       CALL W3EQTOLL( YGRDIN, XGRDIN, StdLat, StdLon, AnglDin, &
            PoLat, PoLon, NX*NY )
+      ELSE
+              ALLOCATE(XUGRDIN(NX*NY),YUGRDIN(NX*NY))
+         DO IX = 1,NX*NY
+           XUGRDIN(IX) = XGRD(1,IX)
+           YUGRDIN(IX) = YGRD(1,IX)
+         ENDDO
+         CALL W3EQTOLL(YUGRDIN, XUGRDIN, StdLat, StdLon, AnglDin, &
+                        PoLat, PoLon, NX*NY )
+       ENDIF
 
       !       Clean up
       DEALLOCATE( StdLat, StdLon )

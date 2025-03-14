@@ -229,7 +229,7 @@ CONTAINS
 #ifdef W3_OASIS
        ,ID_LCOMM, TIMEN                 &
 #endif
-       )
+       , mean_data, std_data, out_mean_data, out_std_data,model)
     !/
     !/                  +-----------------------------------+
     !/                  | WAVEWATCH III           NOAA/NCEP |
@@ -405,6 +405,9 @@ CONTAINS
     ! 10. Source code :
     !
     !/ ------------------------------------------------------------------- /
+    USE ftorch
+    USE W3SNLMLMD
+!    USE W3SHELMD, only: model
     USE CONSTANTS
     !/
     USE W3GDATMD
@@ -451,7 +454,7 @@ CONTAINS
     USE PDLIB_W3PROFSMD, only : PDLIB_W3XYPUG, PDLIB_W3XYPUG_BLOCK_IMPLICIT, PDLIB_W3XYPUG_BLOCK_EXPLICIT
     USE PDLIB_W3PROFSMD, only : ALL_VA_INTEGRAL_PRINT, ALL_VAOLD_INTEGRAL_PRINT, ALL_FIELD_INTEGRAL_PRINT
     USE W3PARALL, only : PDLIB_NSEAL, PDLIB_NSEALM
-    USE yowNodepool, only: npa, iplg, np
+    USE yowNodepool, only: npa, iplg, np, ghostlg,ipgl,ghostgl,ng
 #endif
     !/
     USE W3SERVMD
@@ -499,13 +502,18 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
     !/
+! Generate an object to hold the Torch model
+!type(torch_module) :: model
+
     INTEGER, INTENT(IN)           :: IMOD, TEND(2),ODAT(35)
     LOGICAL, INTENT(IN), OPTIONAL :: STAMP, NO_OUT
 #ifdef W3_OASIS
     INTEGER, INTENT(IN), OPTIONAL :: ID_LCOMM
     INTEGER, INTENT(IN), OPTIONAL :: TIMEN(2)
 #endif
-    !/
+   REAL, INTENT(IN), OPTIONAL :: mean_data(1802), std_data(1802), out_mean_data(1800), out_std_data(1800) 
+   type(torch_module), intent(in), OPTIONAL:: model
+   !/
     !/ ------------------------------------------------------------------- /
     !/ Local parameters :
     !/
@@ -601,11 +609,26 @@ CONTAINS
     REAL                    :: BACANGL
 #endif
     integer :: memunit
+
+    !ftorch
+    REAL ::  ft_time, fte_time,clock_rate
+    REAL ::  VNL_ML(NSPEC,NSEAL)
+
+    REAL    :: ftime(4)
+    integer :: IERR
+
+
+    integer :: timet
+CHARACTER(LEN=34)       ::FILENAME
+
     !/ ------------------------------------------------------------------- /
     ! 0.  Initializations
     !
+
     XXX = undef
     memunit = 40000+iaproc
+
+
     ! 0.a Set pointers to data structure
     !
 #ifdef W3_COU
@@ -1035,6 +1058,9 @@ CONTAINS
 
       !
       DO IT = IT0, NT
+
+      !VNL_O = 0
+      !VT_O =0
 #ifdef W3_TIMINGS
         CALL PRINT_MY_TIME("Begin of IT loop")
 #endif
@@ -1143,7 +1169,7 @@ CONTAINS
         CALL PRINT_MY_TIME("After CX/CY assignation")
 #endif
         !
-        call print_memcheck(memunit, 'memcheck_____:'//' WW3_WAVE TIME LOOP 5')
+        call print_memcheck(memunit, 'memchec/k_____:'//' WW3_WAVE TIME LOOP 5')
 
         IF ( FLWIND ) THEN
           IF ( FLFRST ) ASF = 1.
@@ -1477,10 +1503,13 @@ CONTAINS
           ENDIF
 #endif
 
-
 #ifdef W3_PDLIB
 
-          DO JSEA = 1, NP
+!call NLML subroutine
+call ml_routine(DW(1:NSEA), CG(1:NK,1:NSEA), VA(1:1800,1:NSEAL), VNL_ML, mean_data, std_data, out_mean_data, out_std_data,IAPROC,ftime, model)
+
+
+           DO JSEA = 1, NP
 
             CALL INIT_GET_ISEA(ISEA, JSEA)
 
@@ -1544,7 +1573,7 @@ CONTAINS
                  TWS(JSEA), PHIOC(JSEA), TMP1, D50, PSIC, TMP2,     &
                  PHIBBL(JSEA), TMP3, TMP4, PHICE(JSEA),             &
                  TAUOCX(JSEA), TAUOCY(JSEA), WNMEAN(JSEA),          &
-                 RHOAIR(ISEA), ASF(ISEA))
+                 RHOAIR(ISEA), ASF(ISEA),VNL_ML(:,JSEA))
             IF (.not. LSLOC) THEN
               VSTOT(:,JSEA) = VSioDummy
               VDTOT(:,JSEA) = VDioDummy
@@ -1559,6 +1588,7 @@ CONTAINS
           END DO ! JSEA
         END IF ! PDLIB
 #endif
+
 
 
 #ifdef W3_PDLIB
@@ -2155,11 +2185,16 @@ CONTAINS
             !$OMP DO SCHEDULE (DYNAMIC,1)
 #endif
 
-            !
+     !call NLML subroutine
+call ml_routine(DW(1:NSEA), CG(1:NK,1:NSEA), VA(1:1800,1:NSEAL), VNL_ML, mean_data, std_data, out_mean_data, out_std_data,IAPROC, model)
+
+
+
             DO JSEA=1, NSEAL
               CALL INIT_GET_ISEA(ISEA, JSEA)
               IX     = MAPSF(ISEA,1)
               IY     = MAPSF(ISEA,2)
+
               DELA=1.
               DELX=1.
               DELY=1.
@@ -2218,7 +2253,7 @@ CONTAINS
                        TWS(JSEA),PHIOC(JSEA), TMP1, D50, PSIC, TMP2,     &
                        PHIBBL(JSEA), TMP3, TMP4, PHICE(JSEA),            &
                        TAUOCX(JSEA), TAUOCY(JSEA), WNMEAN(JSEA),         &
-                       RHOAIR(ISEA), ASF(ISEA))
+                       RHOAIR(ISEA), ASF(ISEA), VNL_ML(:,JSEA))
                 ELSE
 #endif
                   CALL W3SRCE(srce_direct, IT, ISEA, JSEA, IX, IY, IMOD, &
@@ -2244,7 +2279,7 @@ CONTAINS
                        TWS(JSEA), PHIOC(JSEA), TMP1, D50, PSIC,TMP2,     &
                        PHIBBL(JSEA), TMP3, TMP4 , PHICE(JSEA),           &
                        TAUOCX(JSEA), TAUOCY(JSEA), WNMEAN(JSEA),         &
-                       RHOAIR(ISEA), ASF(ISEA))
+                       RHOAIR(ISEA), ASF(ISEA),  VNL_ML(:,JSEA))
 #ifdef W3_PDLIB
                 END IF
 #endif
@@ -2261,7 +2296,6 @@ CONTAINS
               END IF
             END DO
 
-            !
 #ifdef W3_OMPG
             !$OMP END DO
             !$OMP END PARALLEL
@@ -2339,6 +2373,7 @@ CONTAINS
 #ifdef W3_T
       WRITE (NDST,9030)
 #endif
+
       call print_memcheck(memunit, 'memcheck_____:'//' WW3_WAVE END TIME LOOP')
       !
       !     End of loop over time steps
@@ -2606,6 +2641,8 @@ CONTAINS
                           ,NDS(15)                           &
 #endif
                           )
+
+
                 END IF
                 !
               ELSE IF ( J .EQ. 3 ) THEN
@@ -2904,6 +2941,168 @@ CONTAINS
     !/ End of W3WAVE ----------------------------------------------------- /
     !/
   END SUBROUTINE W3WAVE
+
+        subroutine tick(t)
+        integer, intent(OUT) :: t
+        call system_clock(t)
+      end subroutine tick
+
+     ! returns time in seconds from now to time described by t
+     real function tock(t)
+        integer, intent(in) :: t
+        integer :: now, clock_rate
+        call system_clock(now,clock_rate)
+        tock = real(now - t)/real(clock_rate)
+      end function tock
+
+
+      subroutine writenetcdffile(array,fn, name_station, name_dim2,standard_name, long_name,units)
+        USE NETCDF
+        implicit none
+        real, intent(IN), dimension(:,:) :: array
+        character(len=7):: name_station
+        character(*):: name_dim2,standard_name, long_name,units
+        integer :: file_id, xdim_id,fdim_id
+        integer :: array_id
+        INTEGER                             :: DEFLATE=1
+        integer, dimension(2) :: arrdims
+        character(len=*), parameter :: arrunit = 'ergs'
+        character(*) :: fn
+        integer :: i, j
+        integer :: ierr
+
+        i = size(array,1)
+        j = size(array,2)
+
+        ! create the file
+        ierr =nf90_create(path='./'//TRIM(fn),cmode=NF90_CLOBBER,ncid=file_id)
+
+        ! define the dimensions
+        ierr = nf90_def_dim(file_id, name_station, j, xdim_id)
+        ierr = nf90_def_dim(file_id, TRIM(name_dim2), i, fdim_id)
+      !  ierr = nf90_def_dim(file_id, 'dir', j, ddim_id)
+
+        ! now that the dimensions are defined, we can define variables
+        ! on them,...
+        arrdims = (/ fdim_id, xdim_id /)
+        ierr = nf90_def_var(file_id,standard_name ,NF90_REAL,arrdims,array_id)
+
+        ! ...and assign units to them as an attribute 
+
+        ierr=NF90_DEF_VAR_DEFLATE(file_id, array_id, 1, 1, DEFLATE)
+        ierr=NF90_PUT_ATT(file_id,array_id,'long_name', TRIM(long_name))
+        ierr=NF90_PUT_ATT(file_id,array_id,'standard_name',TRIM(standard_name))
+        ierr=NF90_PUT_ATT(file_id,array_id,'units',TRIM(units))
+        ierr=NF90_PUT_ATT(file_id,array_id,'scale_factor',1.)
+        ierr=NF90_PUT_ATT(file_id,array_id,'add_offset',0.)
+        ierr=NF90_PUT_ATT(file_id,array_id,'valid_min',0.)
+        ierr=NF90_PUT_ATT(file_id,array_id,'valid_max',1.E20)
+        ierr=NF90_PUT_ATT(file_id,array_id,'_FillValue',NF90_FILL_FLOAT)
+        ierr=NF90_PUT_ATT(file_id,array_id,'content','TXYZ')
+        ierr=NF90_PUT_ATT(file_id,array_id,'associates','time station frequency direction')
+
+        ! done defining
+        ierr = nf90_enddef(file_id)
+
+        ! Write out the values
+        ierr = nf90_put_var(file_id, array_id, array)
+
+        ! close; done
+        ierr = nf90_close(file_id)
+       return
+      end subroutine writenetcdffile
+
+      subroutine writenetcdffile1D(array,fn, name_station,standard_name, long_name,units)
+        USE NETCDF
+        implicit none
+        real, intent(IN), dimension(:) :: array
+        character(len=7):: name_station
+        character(*):: standard_name, long_name,units
+        integer :: file_id, xdim_id,fdim_id
+        integer :: array_id
+        INTEGER                             :: DEFLATE=1
+        integer, dimension(1) :: arrdims
+        character(len=*), parameter :: arrunit = 'ergs'
+        character(*) :: fn
+        integer :: i, j
+        integer :: ierr
+
+        j = size(array)
+
+        ! create the file
+        ierr=nf90_create(path='./'//TRIM(fn),cmode=NF90_CLOBBER,ncid=file_id)
+
+        ! define the dimensions
+        ierr = nf90_def_dim(file_id, name_station, j, xdim_id)
+
+        ! now that the dimensions are defined, we can define variables
+        ! on them,...
+        arrdims = (/ xdim_id /)
+        ierr = nf90_def_var(file_id,standard_name,NF90_REAL,arrdims,array_id)
+
+        ierr=NF90_DEF_VAR_DEFLATE(file_id, array_id, 1, 1, DEFLATE)
+        ierr=NF90_PUT_ATT(file_id,array_id,'long_name', TRIM(long_name))
+        ierr=NF90_PUT_ATT(file_id,array_id,'standard_name',TRIM(standard_name))
+        ierr=NF90_PUT_ATT(file_id,array_id,'units',TRIM(units))
+        ierr=NF90_PUT_ATT(file_id,array_id,'scale_factor',1.)
+        ierr=NF90_PUT_ATT(file_id,array_id,'add_offset',0.)
+        ierr=NF90_PUT_ATT(file_id,array_id,'valid_min',0.)
+        ierr=NF90_PUT_ATT(file_id,array_id,'valid_max',1.E20)
+        ierr=NF90_PUT_ATT(file_id,array_id,'_FillValue',NF90_FILL_FLOAT)
+        ierr=NF90_PUT_ATT(file_id,array_id,'content','TXYZ')
+        ierr=NF90_PUT_ATT(file_id,array_id,'associates','time station frequency direction')
+        ! done defining
+        ierr = nf90_enddef(file_id)
+
+        ! Write out the values
+        ierr = nf90_put_var(file_id, array_id, array)
+
+        ! close; done
+        ierr = nf90_close(file_id)
+       return
+      end subroutine writenetcdffile1D
+       subroutine row_to_column_major(row_flattened, rows, cols, column_flattened)
+    implicit none
+    integer, intent(in) :: rows, cols
+    real, dimension(:), intent(in) :: row_flattened
+    real, dimension(:), intent(out) :: column_flattened
+    integer :: i, j, index
+
+    ! Allocate the output vector
+    !allocate(column_flattened(rows * cols))
+
+    ! Perform the conversion from row-major to column-major order
+    index = 1
+    do j = 1, cols
+      do i = 1, rows
+        column_flattened(index) = row_flattened((i-1) * cols + j)
+        index = index + 1
+      end do
+    end do
+  end subroutine row_to_column_major
+
+  ! Subroutine to convert column-major flattened to row-major flattened
+  subroutine column_to_row_major(column_flattened, rows, cols, row_flattened)
+    implicit none
+    integer, intent(in) :: rows, cols
+    real, dimension(:), intent(in) :: column_flattened
+    real, dimension(:),  intent(out) :: row_flattened
+    integer :: i, j, index
+
+    ! Allocate the output vector
+    !allocate(row_flattened(rows * cols))
+
+    ! Perform the conversion from column-major to row-major order
+    index = 1
+    do i = 1, rows
+      do j = 1, cols
+        row_flattened(index) = column_flattened((j-1) * rows + i)
+        index = index + 1
+      end do
+    end do
+  end subroutine column_to_row_major
+
+
   !/ ------------------------------------------------------------------- /
   !>
   !> @brief Gather spectral bin information into a propagation field array.

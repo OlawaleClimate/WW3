@@ -10,7 +10,6 @@ project(
   WW3
   VERSION ${pVersion}
   LANGUAGES C Fortran)
-
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
   # Unset flags that come from Parent (ie UFS or other coupled build) 
@@ -33,7 +32,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Set switch file on command line when running CMake
 set(SWITCH "" CACHE STRING "Switch file, either full path, relative path from location of top-level WW3/ dir, or a switch in model/bin")
-
+set(METIS_PATH ${CMAKE_PREFIX_PATH}})
 # Search for switch file as a full path or in model/bin
 if(EXISTS ${SWITCH})
   set(switch_file ${SWITCH})

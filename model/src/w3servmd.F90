@@ -1267,7 +1267,6 @@ CONTAINS
     DO I= 1, POINTS
 
       ! Scale eq longitude to range -180 to +180 degs
-
       E_LAMBDA=LAMBDA_EQ(I)
       IF(E_LAMBDA.GT. 180.0) E_LAMBDA=E_LAMBDA-360.D0
       IF(E_LAMBDA.LT.-180.0) E_LAMBDA=E_LAMBDA+360.D0
