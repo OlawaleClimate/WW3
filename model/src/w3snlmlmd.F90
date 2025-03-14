@@ -11,7 +11,7 @@ module W3SNLMLMD
 
 
   private
-  public :: ml_init, ml_routine, ml_final, ml_routinenofac
+  public :: ml_init, ml_routine, ml_final
 
   contains
 

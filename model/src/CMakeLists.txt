@@ -124,6 +124,7 @@ if(NetCDF_Fortran_FOUND)
   list(APPEND programs ${netcdf_programs})
 endif()
 
+
 if(MULTI_ESMF)
   # Don't search for ESMF if target already exists (when build WW3 as UFS submodule)
   if (NOT TARGET esmf)
@@ -168,10 +169,6 @@ elseif("METIS"  IN_LIST switches)
  endif()
 endif()
 
-find_package(FTorch)
-target_link_libraries(ww3_lib PRIVATE FTorch::ftorch )
-message(STATUS "Building with Fortran PyTorch coupling")
-
 
 if("SCRIP" IN_LIST switches)
   target_sources(ww3_lib PRIVATE ${scrip_src})
@@ -204,6 +201,12 @@ foreach(program ${programs})
   add_executable(${program} ${program}.F90)
   target_link_libraries(${program} PRIVATE ww3_lib)
 endforeach()
+
+find_package(FTorch)
+target_link_libraries(ww3_lib PRIVATE FTorch::ftorch)
+target_link_libraries(ww3_shel PRIVATE FTorch::ftorch)
+message(STATUS "Building with Fortran PyTorch coupling")
+
 
 install(
   TARGETS ${programs} ww3_lib

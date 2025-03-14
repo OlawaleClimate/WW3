@@ -1506,7 +1506,7 @@ CHARACTER(LEN=34)       ::FILENAME
 #ifdef W3_PDLIB
 
 !call NLML subroutine
-call ml_routine(DW(1:NSEA), CG(1:NK,1:NSEA), VA(1:1800,1:NSEAL), VNL_ML, mean_data, std_data, out_mean_data, out_std_data,IAPROC,ftime, model)
+call ml_routine(DW(1:NSEA), CG(1:NK,1:NSEA), VA(1:1800,1:NSEAL), VNL_ML, mean_data, std_data, out_mean_data, out_std_data,IAPROC, model)
 
 
            DO JSEA = 1, NP
