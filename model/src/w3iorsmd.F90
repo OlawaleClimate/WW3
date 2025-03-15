@@ -712,9 +712,9 @@ CONTAINS
               ELSE
                 !
                 CALL MPI_STARTALL                        &
-                     ( 1, IRQRSS(IB), IERR_MPI )
+                     (1, IRQRSS(IB), IERR_MPI)
                 CALL MPI_WAITALL                         &
-                     ( 1, IRQRSS(IB), STAT1, IERR_MPI )
+                     (1, IRQRSS(IB), STAT1, IERR_MPI)
                 !
               END IF
             END DO

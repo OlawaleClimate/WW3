@@ -44,11 +44,10 @@ add_compile_definitions(ENDIANNESS='${endianness}')
 target_include_directories(ww3_lib
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
   $<INSTALL_INTERFACE:mod>)
-
 # Set compiler flags.
 if(CMAKE_Fortran_COMPILER_ID MATCHES "^(Intel)$")
-  set(compile_flags -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model precise
-    -assume byterecl -fno-alias -fno-fnalias)
+   set(compile_flags -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model precise
+	-assume byterecl -fno-alias -fno-fnalias)
   # -sox only works on Linux
   if(LINUX)
     list(APPEND compile_flags -sox)
@@ -76,7 +75,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "^(GNU)$")
   endif()
 
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "PGI")
-  set(compile_flags -g -i4 -r4 -Kieee)
+  set(compile_flags -g -Minfo -i4 -r4 -Kieee)
   set(compile_flags_release -O3)
   set(compile_flags_debug -O0 -Mbounds -Mchkfpstk -Mchkstk -Mdalign -Mdclchk -Mdepchk -Miomutex -Ktrap=fp -Mrecursive -traceback)
   
@@ -90,17 +89,16 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
   set(compile_flags_release -O3)
   set(compile_flags_debug -O0 -Rbcps -Ktrap=fp)
 endif()
-
 target_compile_options(ww3_lib PUBLIC "$<$<COMPILE_LANGUAGE:Fortran>:${compile_flags}>")
 target_compile_options(ww3_lib PUBLIC "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:Fortran>>:${compile_flags_debug}>")
 target_compile_options(ww3_lib PUBLIC "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:Fortran>>:${compile_flags_release}>")
 
 # Executables to always build
 set(programs ww3_strt ww3_grid ww3_bound ww3_outf ww3_outp ww3_trck ww3_grib
-  ww3_gint gx_outf gx_outp ww3_uprstr ww3_shel ww3_prep ww3_gspl ww3_multi ww3_systrk)
+  ww3_gint gx_outf gx_outp ww3_uprstr ww3_prep ww3_gspl ww3_multi ww3_systrk)
 
 # Executables to build if NetCDF is found
-set(netcdf_programs ww3_ounf ww3_ounp ww3_bounc ww3_trnc ww3_prnc)
+set(netcdf_programs ww3_ounf ww3_ounp ww3_bounc ww3_trnc ww3_prnc ww3_shel)
 
 if("OASIS" IN_LIST switches)
   find_package(OASIS REQUIRED)
@@ -170,6 +168,7 @@ elseif("METIS"  IN_LIST switches)
  endif()
 endif()
 
+
 if("SCRIP" IN_LIST switches)
   target_sources(ww3_lib PRIVATE ${scrip_src})
 endif()
@@ -201,6 +200,12 @@ foreach(program ${programs})
   add_executable(${program} ${program}.F90)
   target_link_libraries(${program} PRIVATE ww3_lib)
 endforeach()
+
+find_package(FTorch)
+target_link_libraries(ww3_lib PRIVATE FTorch::ftorch)
+target_link_libraries(ww3_shel PRIVATE FTorch::ftorch)
+message(STATUS "Building with Fortran PyTorch coupling")
+
 
 install(
   TARGETS ${programs} ww3_lib

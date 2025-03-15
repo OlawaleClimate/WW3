@@ -805,6 +805,17 @@
         ]
     },
     {
+        "name": "nlml",
+        "num_switches": "upto1",
+        "description": "ML snl2 source term",
+        "valid-options": [
+            {
+                "name": "NLML",
+                "build_files": ["w3snlmlmd.F90"]
+            }
+        ]
+    },
+    {
         "name": "b4b",
         "num_switches": "upto1",
         "description": "bit-for-bit reproducability",
