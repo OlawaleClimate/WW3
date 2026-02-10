@@ -8,9 +8,11 @@ Demonstrates how to:
   4. Plot results
 """
 
+import math
 import numpy as np
 import matplotlib.pyplot as plt
-from spectrum import WaveSpectrum
+from .spectrum import WaveSpectrum
+from .dispersion import solve_dispersion
 
 
 def create_jonswap_spectrum(nfreq=30, ndir=36, tp=8.0, hs=2.0, gamma=3.3):
@@ -53,8 +55,8 @@ def create_jonswap_spectrum(nfreq=30, ndir=36, tp=8.0, hs=2.0, gamma=3.3):
 
     # Directional spreading (cosine-2s)
     s = 2
-    dir_spreading = (2**s * np.math.factorial(s)**2 / np.math.pi /
-                     np.math.factorial(2*s) * np.cos(directions)**2s)
+    dir_spreading = (2**s * math.factorial(s)**2 / math.pi /
+                     math.factorial(2*s) * np.cos(directions)**(2*s))
     dir_spreading = dir_spreading / np.sum(dir_spreading) * ndir
 
     # 2D spectrum: E(f,θ) = E(f) × D(θ)
@@ -294,7 +296,6 @@ def example_0_ww3_parameters():
     ftwl_ww3 = (9.81 / 6.0) / omega_ww3[-1] * dth * omega_ww3[-1]
 
     # Wavenumber and group velocity from WW3 (computed in w3initmd.F90)
-    from dispersion import solve_dispersion
     depth = 100.0
     wn_ww3 = np.zeros(nfreq)
     cg_ww3 = np.zeros(nfreq)
