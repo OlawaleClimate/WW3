@@ -42,6 +42,14 @@ __author__ = "Claude"
 
 from .spectrum import WaveSpectrum
 from .dispersion import solve_dispersion, compute_wavelength, compute_group_velocity_deep_water
+from .spectrum_converter import (
+    action_to_energy_2d,
+    action_to_frequency_spectrum_1d,
+    action_to_directional_spectrum_1d,
+    get_peak_frequency,
+    get_peak_direction,
+    normalize_spectrum
+)
 from .constants import (
     GRAV, TPI, TPIINV, RADE, DEGRAD,
     DEFAULT_NK, DEFAULT_NTH, DEFAULT_FR1, DEFAULT_XFR
@@ -52,6 +60,12 @@ __all__ = [
     'solve_dispersion',
     'compute_wavelength',
     'compute_group_velocity_deep_water',
+    'action_to_energy_2d',
+    'action_to_frequency_spectrum_1d',
+    'action_to_directional_spectrum_1d',
+    'get_peak_frequency',
+    'get_peak_direction',
+    'normalize_spectrum',
     'GRAV',
     'TPI',
     'TPIINV',
