@@ -328,6 +328,18 @@ Where:
 
 These are pre-computed in WW3's w3gridmd.F90 and provided as the DDEN array.
 
+**IMPORTANT**: DDEN already includes both directional (DTH) and frequency (DSII) binning. When converting to 1D spectra:
+
+- **1D Frequency Spectrum**: Sum over directions only
+  - E(f) = ∑_θ E(θ,f) = ∑_θ [A(θ,f) × (DDEN / CG)]
+  - Do NOT multiply by DTH again (already in DDEN)
+
+- **1D Directional Spectrum**: Sum over frequencies only
+  - E(θ) = ∑_f E(θ,f) = ∑_f [A(θ,f) × (DDEN / CG)]
+  - Do NOT multiply by DSII again (already in DDEN)
+
+Double-counting these factors would give incorrect results.
+
 ## Performance Notes
 
 - **Memory**: (36, 30) spectrum ≈ 8.6 KB (float64)

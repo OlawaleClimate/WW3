@@ -173,6 +173,8 @@ This accounts for:
 3. Frequency scaling (ω)
 4. Wave frame vs. lab frame (CG)
 
+**KEY POINT**: DDEN already includes DTH and DSII, so they should NOT be applied again when extracting 1D spectra. The converter handles this correctly by just summing over the integrated dimensions.
+
 ## Full Documentation
 
 For detailed API reference, examples, and mathematical background, see:

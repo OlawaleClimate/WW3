@@ -92,6 +92,9 @@ def action_to_frequency_spectrum_1d(action, omega, group_velocity, dintegral=Non
 
     Integrates action density over all directions to produce a frequency spectrum.
 
+    Note: Since DDEN already includes DTH (directional binning), we only sum
+    over directions without additional multiplication by ddir.
+
     Arguments:
         action (ndarray): Action density (ndir, nfreq) [m²·s·rad⁻¹]
         omega (ndarray): Angular frequency [rad/s]
@@ -107,12 +110,13 @@ def action_to_frequency_spectrum_1d(action, omega, group_velocity, dintegral=Non
     """
 
     # Get 2D energy spectrum first
-    energy_2d, freq, _, ddir_val = action_to_energy_2d(
+    energy_2d, freq, _, _ = action_to_energy_2d(
         action, omega, group_velocity, dintegral, directions, ddir
     )
 
-    # Integrate over directions (sum all directions and apply ddir)
-    e_freq = np.sum(energy_2d, axis=0) * ddir_val
+    # Integrate over directions (sum all directions)
+    # DTH is already included in DDEN, so we just sum without extra multiplication
+    e_freq = np.sum(energy_2d, axis=0)
 
     return freq, e_freq
 
@@ -163,15 +167,14 @@ def action_to_directional_spectrum_1d(action, omega, group_velocity, dintegral=N
 
     dintegral = np.atleast_1d(np.asarray(dintegral, dtype=float))
 
-    # Compute frequency bandwidth for each bin
-    dfreq = _compute_dfreq(omega)
-
     # Convert action to energy per frequency bin
     # E_freq = A × (DDEN / CG) for each frequency
     conversion_factor = dintegral / (group_velocity + SMALL)
 
-    # Integrate over frequencies: sum all frequencies weighted by dfreq
-    e_dir = np.sum(action * conversion_factor[np.newaxis, :] * dfreq[np.newaxis, :], axis=1)
+    # Integrate over frequencies (sum all frequencies)
+    # Note: Frequency bandwidth is already included in DDEN, so we just sum
+    # without additional multiplication by dfreq
+    e_dir = np.sum(action * conversion_factor[np.newaxis, :], axis=1)
 
     return directions, e_dir
 
