@@ -396,7 +396,7 @@ class WaveSpectrum:
             dirs (ndarray): Direction [radians]
             e_dir (ndarray): Energy density [m²/rad]
         """
-        # Integrate over frequencies
-        e_dir = np.sum(self.action, axis=1) * self.dfreq
+        # Integrate over frequencies (multiply by dfreq for each frequency)
+        e_dir = np.sum(self.action * self.dfreq[np.newaxis, :], axis=1)
 
         return self.directions, e_dir
