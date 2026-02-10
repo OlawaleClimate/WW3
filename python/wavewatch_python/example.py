@@ -262,8 +262,89 @@ def example_4_1d_spectra():
     plt.close()
 
 
+def example_0_ww3_parameters():
+    """Example 0: Using WW3 pre-computed parameters (RECOMMENDED)."""
+
+    print("=" * 70)
+    print("EXAMPLE 0: Using WW3 Pre-computed Parameters (RECOMMENDED)")
+    print("=" * 70)
+
+    # Simulate WW3 grid initialization values
+    # These would be read from a WW3 model run
+    nfreq, ndir = 30, 36
+
+    # Frequency grid from WW3 (SIG array in w3gridmd.F90)
+    fr1_ww3 = 0.04
+    xfr_ww3 = 1.1
+    omega_ww3 = 2.0 * np.pi * fr1_ww3 * xfr_ww3 ** np.arange(nfreq)
+
+    # Integration factors from WW3 (DDEN in w3gridmd.F90)
+    dth = 2.0 * np.pi / ndir
+    dsii = np.zeros(nfreq)
+    dsii[0] = (omega_ww3[1] - omega_ww3[0]) / 2.0
+    for i in range(1, nfreq - 1):
+        dsii[i] = (omega_ww3[i+1] - omega_ww3[i-1]) / 2.0
+    dsii[-1] = (omega_ww3[-1] - omega_ww3[-2]) / 2.0
+
+    dden_ww3 = dth * dsii * omega_ww3
+
+    # Tail factors from WW3 (computed in w3gridmd.F90)
+    fte_ww3 = 0.25 * omega_ww3[-1] * dth * omega_ww3[-1]
+    fttr_ww3 = 0.20 * dth * omega_ww3[-1]
+    ftwl_ww3 = (9.81 / 6.0) / omega_ww3[-1] * dth * omega_ww3[-1]
+
+    # Wavenumber and group velocity from WW3 (computed in w3initmd.F90)
+    from dispersion import solve_dispersion
+    depth = 100.0
+    wn_ww3 = np.zeros(nfreq)
+    cg_ww3 = np.zeros(nfreq)
+    for ik in range(nfreq):
+        wn_ww3[ik], cg_ww3[ik] = solve_dispersion(omega_ww3[ik], depth)
+
+    # Action density spectrum (from WW3 simulation output)
+    action = create_jonswap_spectrum(nfreq=nfreq, ndir=ndir, tp=8.0, hs=2.5)
+
+    print(f"\nWW3 Grid Parameters (from w3gridmd.F90):")
+    print(f"  NK={nfreq}, NTH={ndir}")
+    print(f"  omega[0] = {omega_ww3[0]:.4f} rad/s (f={omega_ww3[0]/(2*np.pi):.4f} Hz)")
+    print(f"  omega[-1] = {omega_ww3[-1]:.4f} rad/s (f={omega_ww3[-1]/(2*np.pi):.4f} Hz)")
+    print(f"  FTE (tail energy) = {fte_ww3:.6f}")
+    print(f"  FTTR (tail period) = {fttr_ww3:.6f}")
+    print(f"  FTWL (tail wavelength) = {ftwl_ww3:.6f}")
+    print(f"  Water depth = {depth:.1f} m")
+
+    # Initialize spectrum with WW3 parameters (RECOMMENDED METHOD)
+    spectrum = WaveSpectrum(
+        action,
+        depth=depth,
+        # Pre-computed WW3 grid parameters
+        omega=omega_ww3,
+        dintegral=dden_ww3,
+        fte=fte_ww3,
+        fttr=fttr_ww3,
+        ftwl=ftwl_ww3,
+        wavenumber=wn_ww3,
+        group_velocity=cg_ww3
+    )
+
+    # Compute parameters
+    params = spectrum.compute_parameters()
+
+    print(f"\nComputed Wave Parameters:")
+    print(f"  HS: {params['hs']:.3f} m")
+    print(f"  T01: {params['t01']:.2f} s")
+    print(f"  T02: {params['t02']:.2f} s")
+    print(f"  T0M1: {params['t0m1']:.2f} s")
+    print(f"  Mean Direction: {np.degrees(params['thm']):.1f}°")
+    print(f"  Spectral Moments:")
+    print(f"    M0: {params['moments']['m0']:.6f} m²")
+    print(f"    M1: {params['moments']['m1']:.6f} m²·s")
+
+
 if __name__ == "__main__":
     # Run examples
+    print("\n\n")
+    example_0_ww3_parameters()
     example_1_basic_spectrum()
     example_2_jonswap_spectrum()
     example_3_depth_effect()

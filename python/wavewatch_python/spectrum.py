@@ -17,27 +17,67 @@ class WaveSpectrum:
     """
     Wave spectrum object for computing wave parameters from action density.
 
+    Can accept either:
+    1. Pre-computed WW3 grid parameters (SIG, DSII/DDEN, FTE, etc.)
+    2. Raw frequency/direction grids (will auto-compute factors)
+
     Attributes:
         action (ndarray): Action density spectrum A(f,θ) [m²·s·rad⁻¹]
+        omega (ndarray): Angular frequency [rad/s]
         frequencies (ndarray): Frequency grid [Hz]
         directions (ndarray): Direction grid [radians]
-        depth (float or ndarray): Water depth [m]
+        depth (float): Water depth [m]
         freq_dim (int): Number of frequency bins
         dir_dim (int): Number of directional bins
+        dintegral (ndarray): Integration factors DDEN = DTH × DSII × SIG
+        fte, fttr, ftwl (float): Tail factors
     """
 
-    def __init__(self, action, frequencies=None, directions=None, depth=1000.0,
+    def __init__(self, action, depth=1000.0,
+                 # WW3 pre-computed parameters (preferred)
+                 omega=None, dintegral=None, fte=None, fttr=None, ftwl=None,
+                 wavenumber=None, group_velocity=None,
+                 # Alternative: raw grid parameters
+                 frequencies=None, directions=None,
                  freq_ratio=None, fr1=None):
         """
         Initialize wave spectrum object.
 
         Arguments:
             action (ndarray): Action density (ndir, nfreq) or (nfreq, ndir)
-            frequencies (ndarray): Frequency grid [Hz], generated if None
-            directions (ndarray): Direction grid [rad], generated if None
             depth (float or ndarray): Water depth [m]
-            freq_ratio (float): Frequency ratio for grid generation
-            fr1 (float): First frequency [Hz] for grid generation
+
+            ===== WW3 PRE-COMPUTED PARAMETERS (Preferred) =====
+            omega (ndarray): Angular frequencies [rad/s] from SIG in w3gridmd
+            dintegral (ndarray): Integration factors DDEN = DTH × DSII × SIG
+            fte (float): Energy tail factor (from w3gridmd)
+            fttr (float): Period tail factor (from w3gridmd)
+            ftwl (float): Wavelength tail factor (from w3gridmd)
+            wavenumber (ndarray): Pre-computed WN(IK) from WAVNU1 [1/m]
+            group_velocity (ndarray): Pre-computed CG(IK) from WAVNU1 [m/s]
+
+            ===== ALTERNATIVE: Raw grid (auto-computed) =====
+            frequencies (ndarray): Frequency grid [Hz]
+            directions (ndarray): Direction grid [rad]
+            freq_ratio (float): Frequency ratio for generation (default XFR=1.1)
+            fr1 (float): First frequency [Hz] for generation
+
+        Examples:
+            # Method 1: Using WW3 pre-computed parameters (RECOMMENDED)
+            >>> omega_ww3 = np.array([...])  # from w3gridmd SIG array
+            >>> dintegral_ww3 = np.array([...])  # from w3gridmd DDEN
+            >>> fte_ww3 = 0.25 * omega_ww3[-1] * dth * omega_ww3[-1]
+            >>> spectrum = WaveSpectrum(action_from_ww3, depth=100.0,
+            ...                         omega=omega_ww3,
+            ...                         dintegral=dintegral_ww3,
+            ...                         fte=fte_ww3, fttr=fttr_ww3, ftwl=ftwl_ww3,
+            ...                         wavenumber=wn_from_ww3,
+            ...                         group_velocity=cg_from_ww3)
+
+            # Method 2: Using raw frequency grid (auto-computed)
+            >>> spectrum = WaveSpectrum(action, depth=100.0,
+            ...                         frequencies=freq_array,
+            ...                         directions=dir_array)
         """
 
         self.action = np.atleast_2d(np.asarray(action, dtype=float))
@@ -47,33 +87,70 @@ class WaveSpectrum:
             self.action = self.action.T
 
         self.dir_dim, self.freq_dim = self.action.shape
-
-        # Generate frequency grid if not provided
-        if frequencies is None:
-            fr1 = fr1 or DEFAULT_FR1
-            freq_ratio = freq_ratio or DEFAULT_XFR
-            self.frequencies = self._generate_freq_grid(
-                self.freq_dim, fr1, freq_ratio
-            )
-        else:
-            self.frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
-
-        # Generate direction grid if not provided
-        if directions is None:
-            self.directions = self._generate_dir_grid(self.dir_dim)
-        else:
-            self.directions = np.atleast_1d(np.asarray(directions, dtype=float))
-
         self.depth = np.atleast_1d(np.asarray(depth, dtype=float))[0]
 
-        # Compute angular frequencies
-        self.omega = 2.0 * np.pi * self.frequencies
+        # ===== USE WW3 PRE-COMPUTED PARAMETERS IF PROVIDED =====
+        if omega is not None:
+            # Using WW3 pre-computed grid parameters
+            self.omega = np.atleast_1d(np.asarray(omega, dtype=float))
+            self.frequencies = self.omega / (2.0 * np.pi)
 
-        # Compute integration factors
-        self._compute_integration_factors()
+            # Use provided integration factors
+            if dintegral is not None:
+                self.dintegral = np.atleast_1d(np.asarray(dintegral, dtype=float))
+            else:
+                # Compute from omega if dintegral not provided
+                self._compute_integration_factors_from_omega()
 
-        # Compute wavenumber and group velocity
-        self._compute_dispersion()
+            # Use provided tail factors
+            self.fte = fte if fte is not None else self._default_fte()
+            self.fttr = fttr if fttr is not None else self._default_fttr()
+            self.ftwl = ftwl if ftwl is not None else self._default_ftwl()
+
+            # Generate or use provided directional grid
+            if directions is None:
+                self.directions = self._generate_dir_grid(self.dir_dim)
+            else:
+                self.directions = np.atleast_1d(np.asarray(directions, dtype=float))
+
+            self.ddir = 2.0 * np.pi / self.dir_dim
+
+            # Use provided or compute wavenumber/group velocity
+            if wavenumber is not None and group_velocity is not None:
+                self.wavenumber = np.atleast_1d(np.asarray(wavenumber, dtype=float))
+                self.group_velocity = np.atleast_1d(np.asarray(group_velocity, dtype=float))
+            else:
+                # Compute from dispersion relation
+                self._compute_dispersion()
+
+        # ===== USE RAW GRID PARAMETERS (Auto-compute factors) =====
+        else:
+            # Generate frequency grid if not provided
+            if frequencies is None:
+                fr1 = fr1 or DEFAULT_FR1
+                freq_ratio = freq_ratio or DEFAULT_XFR
+                self.frequencies = self._generate_freq_grid(
+                    self.freq_dim, fr1, freq_ratio
+                )
+            else:
+                self.frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
+
+            # Compute angular frequencies
+            self.omega = 2.0 * np.pi * self.frequencies
+
+            # Generate direction grid if not provided
+            if directions is None:
+                self.directions = self._generate_dir_grid(self.dir_dim)
+            else:
+                self.directions = np.atleast_1d(np.asarray(directions, dtype=float))
+
+            self.ddir = 2.0 * np.pi / self.dir_dim
+
+            # Compute integration factors
+            self._compute_integration_factors()
+
+            # Compute wavenumber and group velocity
+            self._compute_dispersion()
 
     @staticmethod
     def _generate_freq_grid(nfreq, fr1, freq_ratio):
@@ -84,6 +161,33 @@ class WaveSpectrum:
     def _generate_dir_grid(ndir):
         """Generate regular directional grid."""
         return np.linspace(0, 2*np.pi, ndir, endpoint=False)
+
+    def _default_fte(self):
+        """Default FTE from peak omega (Pierson-Moskowitz)."""
+        omega_peak = self.omega[-1]
+        return 0.25 * omega_peak * self.ddir * omega_peak
+
+    def _default_fttr(self):
+        """Default FTTR (tail period factor)."""
+        omega_peak = self.omega[-1]
+        return 0.20 * self.ddir * omega_peak
+
+    def _default_ftwl(self):
+        """Default FTWL (tail wavelength factor)."""
+        omega_peak = self.omega[-1]
+        return (GRAV / 6.0) / omega_peak * self.ddir * omega_peak
+
+    def _compute_integration_factors_from_omega(self):
+        """Compute DDEN from omega when only omega is provided."""
+        # Compute frequency bandwidth from omega
+        dfreq = np.zeros(len(self.omega))
+        dfreq[0] = (self.omega[1] - self.omega[0]) / 2.0
+        for i in range(1, len(self.omega) - 1):
+            dfreq[i] = (self.omega[i+1] - self.omega[i-1]) / 2.0
+        dfreq[-1] = (self.omega[-1] - self.omega[-2]) / 2.0
+
+        # Full integration factor
+        self.dintegral = self.ddir * dfreq * self.omega
 
     def _compute_integration_factors(self):
         """Compute frequency bandwidth and integration factors."""
