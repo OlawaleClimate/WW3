@@ -156,24 +156,19 @@ Optional:
 
 ## Physical Meaning
 
-The conversion uses:
+The conversion uses the coordinate transformation Jacobian:
 ```
-E(f,θ) = A(f,θ) × (DDEN / CG)
+E(f,θ) = A(k,θ) × (2π / CG)
 ```
 
 Where:
-- **E**: Energy density [m²/Hz/rad]
-- **A**: Action density [m²·s·rad⁻¹]
-- **DDEN**: Integration factor = DTH × DSII × ω
+- **E(f,θ)**: Energy density in frequency-direction space [m²/Hz/rad]
+- **A(k,θ)**: Action density in wavenumber-direction space [m²·s·rad⁻¹]
+- **A(k,θ) = F(k,θ) / σ** where σ = intrinsic frequency = 2πf_r
+- **∂k/∂f = 2π/CG**: Jacobian of the (k,θ) → (f,θ) transformation
 - **CG**: Group velocity [m/s]
 
-This accounts for:
-1. Directional binning (DTH)
-2. Frequency binning (DSII)
-3. Frequency scaling (ω)
-4. Wave frame vs. lab frame (CG)
-
-**KEY POINT**: DDEN already includes DTH and DSII, so they should NOT be applied again when extracting 1D spectra. The converter handles this correctly by just summing over the integrated dimensions.
+**KEY POINT**: This is a pure coordinate transformation. Directional (DTH) and frequency (DSII) binning factors are NOT part of the conversion—they're only used when integrating discrete spectra over bins. The converter applies the correct formula without any extra factors.
 
 ## Full Documentation
 

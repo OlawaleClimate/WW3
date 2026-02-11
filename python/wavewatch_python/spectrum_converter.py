@@ -16,10 +16,13 @@ def action_to_energy_2d(action, omega, group_velocity, dintegral=None,
     """
     Convert 2D action density spectrum to 2D energy density spectrum.
 
-    Converts from action density A(θ,f) to energy density E(θ,f) using
-    the relationship: E(θ,f) = A(θ,f) × (DDEN / CG)
+    Converts from action density N(k,θ) to energy density E(f,θ) using
+    the coordinate transformation Jacobian: E(f,θ) = A(k,θ) × (2π / CG)
 
-    Reference: w3iogomd.F90:1504-1575 (W3OUTG subroutine)
+    Where: A(k,θ) = F(k,θ) / σ (action = energy / intrinsic frequency)
+    And the transformation from (k,θ) to (f,θ) space uses Jacobian ∂k/∂f = 2π/CG
+
+    Reference: Wave spectral density relationships and dispersion relation Jacobians
 
     Arguments:
         action (ndarray): Action density spectrum (ndir, nfreq) [m²·s·rad⁻¹]
@@ -64,17 +67,11 @@ def action_to_energy_2d(action, omega, group_velocity, dintegral=None,
     if ddir is None:
         ddir = 2.0 * np.pi / ndir
 
-    # Compute or use provided integration factors
-    if dintegral is None:
-        dintegral = _compute_dintegral(omega, ndir)
-
-    dintegral = np.atleast_1d(np.asarray(dintegral, dtype=float))
-    if len(dintegral) != nfreq:
-        raise ValueError(f"dintegral length ({len(dintegral)}) != nfreq ({nfreq})")
-
-    # Convert action to energy: E = A × (DDEN / CG)
-    # Energy conversion factor for each frequency
-    conversion_factor = dintegral / (group_velocity + SMALL)
+    # CORRECT CONVERSION FORMULA:
+    # E(f,θ) = A(k,θ) × (2π / CG)
+    # This is the Jacobian of the coordinate transformation from (k,θ) to (f,θ)
+    # DTH and DSII are NOT part of this conversion - they're only for discrete integration
+    conversion_factor = (2.0 * np.pi) / (group_velocity + SMALL)
 
     # Apply conversion factor to all directions at each frequency
     energy_2d = action * conversion_factor[np.newaxis, :]
@@ -82,7 +79,7 @@ def action_to_energy_2d(action, omega, group_velocity, dintegral=None,
     # Convert omega to frequency
     frequencies = omega / (2.0 * np.pi)
 
-    return energy_2d, frequencies, directions, dintegral
+    return energy_2d, frequencies, directions, group_velocity
 
 
 def action_to_frequency_spectrum_1d(action, omega, group_velocity, dintegral=None,

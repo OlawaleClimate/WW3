@@ -299,46 +299,45 @@ for t in [0, 6, 12]:
 
 ### Conversion Formula
 
-The fundamental relationship between action and energy is:
+The fundamental relationship for coordinate transformation from wavenumber-direction space to frequency-direction space is:
 
 ```
-E(f,θ) = A(f,θ) × (DDEN / CG)
+E(f,θ) = A(k,θ) × (∂k/∂f) = A(k,θ) × (2π / CG)
 ```
 
 Where:
-- **E(f,θ)**: Energy density [m²/Hz/rad]
-- **A(f,θ)**: Action density [m²·s·rad⁻¹]
-- **DDEN**: Integration factor = DTH × DSII × ω
+- **E(f,θ)**: Energy density in frequency-direction space [m²/Hz/rad]
+- **A(k,θ)**: Action density in wavenumber-direction space [m²·s·rad⁻¹]
+  - Defined as: A(k,θ) = F(k,θ) / σ where σ = intrinsic frequency
+- **∂k/∂f**: Jacobian of coordinate transformation = 2π/CG
 - **CG**: Group velocity [m/s]
 
 ### Why This Conversion?
 
-1. **WW3 uses action density** because it's conserved during wave propagation across depth gradients
+1. **WW3 stores action density** because it's conserved during wave propagation across depth gradients
 2. **Users need energy density** for standard wave statistics (HS, peak period, etc.)
-3. **Group velocity compensation** accounts for the wave frame vs. lab frame difference
+3. **Coordinate transformation** is needed because action is in (k,θ) space while output is in (f,θ) space
+4. **Jacobian 2π/CG** accounts for the change of variables from wavenumber to frequency using the dispersion relation
 
-### Integration Factors
+### Important: DTH and DSII Are NOT Conversion Factors
 
-**DDEN = DTH × DSII × ω**
+The conversion formula **E(f,θ) = A(k,θ) × (2π / CG)** contains ONLY the coordinate transformation Jacobian.
 
-Where:
-- **DTH**: Directional bin width = 2π/NTH [radians]
-- **DSII**: Frequency bin width (variable for logarithmic grid)
-- **ω**: Angular frequency [rad/s]
+- **DTH** (directional bin width) is a discrete integration factor, NOT part of the physical conversion
+- **DSII** (frequency bin width) is a discrete integration factor, NOT part of the physical conversion
+- These are only needed when summing over discrete bins to compute moments
 
-These are pre-computed in WW3's w3gridmd.F90 and provided as the DDEN array.
+Therefore, when extracting 1D spectra from the 2D energy, you simply sum without reapplying these factors:
 
-**IMPORTANT**: DDEN already includes both directional (DTH) and frequency (DSII) binning. When converting to 1D spectra:
+- **1D Frequency Spectrum**:
+  ```
+  E(f) = ∑_θ E(θ,f)  (just sum, no DTH multiplication)
+  ```
 
-- **1D Frequency Spectrum**: Sum over directions only
-  - E(f) = ∑_θ E(θ,f) = ∑_θ [A(θ,f) × (DDEN / CG)]
-  - Do NOT multiply by DTH again (already in DDEN)
-
-- **1D Directional Spectrum**: Sum over frequencies only
-  - E(θ) = ∑_f E(θ,f) = ∑_f [A(θ,f) × (DDEN / CG)]
-  - Do NOT multiply by DSII again (already in DDEN)
-
-Double-counting these factors would give incorrect results.
+- **1D Directional Spectrum**:
+  ```
+  E(θ) = ∑_f E(θ,f)  (just sum, no DSII multiplication)
+  ```
 
 ## Performance Notes
 
