@@ -16,13 +16,17 @@ def action_to_energy_2d(action, omega, group_velocity, dintegral=None,
     """
     Convert 2D action density spectrum to 2D energy density spectrum.
 
-    Converts from action density N(k,θ) to energy density E(f,θ) using
-    the coordinate transformation Jacobian: E(f,θ) = A(k,θ) × (2π / CG)
+    Converts from action density A(k,θ) to energy density E(f,θ) using:
+      E(f,θ) = A(k,θ) × σ × (∂k/∂f)
+              = A(k,θ) × SIG × (2π / CG)
 
-    Where: A(k,θ) = F(k,θ) / σ (action = energy / intrinsic frequency)
-    And the transformation from (k,θ) to (f,θ) space uses Jacobian ∂k/∂f = 2π/CG
+    Where:
+      - A(k,θ) = F(k,θ) / σ (action = energy / intrinsic frequency)
+      - σ = SIG = intrinsic (angular) frequency [rad/s]
+      - ∂k/∂f = 2π / CG = Jacobian of (k,θ) → (f,θ) transformation
+      - SIG is the angular frequency array from WW3 w3gridmd.F90
 
-    Reference: Wave spectral density relationships and dispersion relation Jacobians
+    Reference: Wave action balance with coordinate transformation
 
     Arguments:
         action (ndarray): Action density spectrum (ndir, nfreq) [m²·s·rad⁻¹]
@@ -68,10 +72,10 @@ def action_to_energy_2d(action, omega, group_velocity, dintegral=None,
         ddir = 2.0 * np.pi / ndir
 
     # CORRECT CONVERSION FORMULA:
-    # E(f,θ) = A(k,θ) × (2π / CG)
-    # This is the Jacobian of the coordinate transformation from (k,θ) to (f,θ)
-    # DTH and DSII are NOT part of this conversion - they're only for discrete integration
-    conversion_factor = (2.0 * np.pi) / (group_velocity + SMALL)
+    # E(f,θ) = A(k,θ) × σ × (2π / CG)
+    # Where: σ = SIG = intrinsic (angular) frequency = omega
+    # This combines the action-to-energy relationship (×σ) with the Jacobian (×2π/CG)
+    conversion_factor = omega * (2.0 * np.pi) / (group_velocity + SMALL)
 
     # Apply conversion factor to all directions at each frequency
     energy_2d = action * conversion_factor[np.newaxis, :]

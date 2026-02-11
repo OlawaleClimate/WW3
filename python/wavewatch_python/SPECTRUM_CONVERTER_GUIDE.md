@@ -299,18 +299,23 @@ for t in [0, 6, 12]:
 
 ### Conversion Formula
 
-The fundamental relationship for coordinate transformation from wavenumber-direction space to frequency-direction space is:
+The conversion from action density to energy density with coordinate transformation is:
 
 ```
-E(f,θ) = A(k,θ) × (∂k/∂f) = A(k,θ) × (2π / CG)
+E(f,θ) = A(k,θ) × σ × (∂k/∂f)
+        = A(k,θ) × SIG × (2π / CG)
 ```
 
 Where:
 - **E(f,θ)**: Energy density in frequency-direction space [m²/Hz/rad]
 - **A(k,θ)**: Action density in wavenumber-direction space [m²·s·rad⁻¹]
-  - Defined as: A(k,θ) = F(k,θ) / σ where σ = intrinsic frequency
-- **∂k/∂f**: Jacobian of coordinate transformation = 2π/CG
+  - Defined as: A(k,θ) = F(k,θ) / σ
+- **σ = SIG**: Intrinsic (angular) frequency [rad/s] from WW3 w3gridmd.F90
+  - This is the angular frequency in the wave frame
+- **∂k/∂f = 2π/CG**: Jacobian of coordinate transformation from (k,θ) to (f,θ)
 - **CG**: Group velocity [m/s]
+
+**Key:** The σ factor comes from the action-to-energy relationship: F = A × σ
 
 ### Why This Conversion?
 

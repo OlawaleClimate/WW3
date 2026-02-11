@@ -156,19 +156,21 @@ Optional:
 
 ## Physical Meaning
 
-The conversion uses the coordinate transformation Jacobian:
+The conversion formula combines the action-to-energy relationship with coordinate transformation:
 ```
-E(f,θ) = A(k,θ) × (2π / CG)
+E(f,θ) = A(k,θ) × σ × (2π / CG)
+        = A(k,θ) × SIG × (2π / CG)
 ```
 
 Where:
 - **E(f,θ)**: Energy density in frequency-direction space [m²/Hz/rad]
 - **A(k,θ)**: Action density in wavenumber-direction space [m²·s·rad⁻¹]
-- **A(k,θ) = F(k,θ) / σ** where σ = intrinsic frequency = 2πf_r
+- **A(k,θ) = F(k,θ) / σ** (action = energy / intrinsic frequency)
+- **σ = SIG**: Intrinsic (angular) frequency [rad/s] from WW3
 - **∂k/∂f = 2π/CG**: Jacobian of the (k,θ) → (f,θ) transformation
 - **CG**: Group velocity [m/s]
 
-**KEY POINT**: This is a pure coordinate transformation. Directional (DTH) and frequency (DSII) binning factors are NOT part of the conversion—they're only used when integrating discrete spectra over bins. The converter applies the correct formula without any extra factors.
+**KEY POINT**: The σ factor is essential—it comes from F = A × σ. Directional (DTH) and frequency (DSII) binning factors are NOT part of the conversion—they're only used when integrating discrete spectra over bins.
 
 ## Full Documentation
 
