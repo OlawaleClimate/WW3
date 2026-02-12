@@ -49,9 +49,9 @@ from .spectrum_converter import (
     action_to_directional_spectrum_1d,
     get_peak_frequency,
     get_peak_direction,
-    normalize_spectrum
+    normalize_spectrum,
+    SpectrumConverter
 )
-from .unified_converter import SpectrumConverter
 from .constants import (
     GRAV, TPI, TPIINV, RADE, DEGRAD,
     DEFAULT_NK, DEFAULT_NTH, DEFAULT_FR1, DEFAULT_XFR

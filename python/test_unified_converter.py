@@ -10,7 +10,7 @@ import numpy as np
 import sys
 sys.path.insert(0, '/home/user/WW3/python')
 
-from wavewatch_python.unified_converter import SpectrumConverter
+from wavewatch_python.spectrum_converter import SpectrumConverter
 from wavewatch_python.dispersion import solve_dispersion
 
 
