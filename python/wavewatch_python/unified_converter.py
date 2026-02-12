@@ -23,6 +23,7 @@ Use Case 3 - WW3 Optimized (use all pre-computed parameters):
 import numpy as np
 from .constants import GRAV, TPI, SMALL
 from .dispersion import solve_dispersion
+from . import spectrum_converter as sc
 
 
 class SpectrumConverter:
@@ -238,9 +239,12 @@ class SpectrumConverter:
         Returns:
             tuple: (energy_2d, frequencies, directions)
         """
-        conversion_factor = self.omega * (2.0 * np.pi) / (self.cg + SMALL)
-        energy_2d = self.action * conversion_factor[np.newaxis, :]
-        return energy_2d, self.frequencies, self.directions
+        # Delegate to existing spectrum_converter function
+        energy_2d, freq, dirs, _ = sc.action_to_energy_2d(
+            self.action, self.omega, self.cg,
+            directions=self.directions, ddir=self.dth, dsii=self.dsii
+        )
+        return energy_2d, freq, dirs
 
     def to_frequency_spectrum_1d(self):
         """
@@ -251,8 +255,11 @@ class SpectrumConverter:
         Returns:
             tuple: (frequencies, e_freq)
         """
-        energy_2d, freq, _ = self.to_energy_2d()
-        e_freq = np.sum(energy_2d, axis=0) * self.dth
+        # Delegate to existing spectrum_converter function
+        freq, e_freq = sc.action_to_frequency_spectrum_1d(
+            self.action, self.omega, self.cg,
+            dintegral=self.dden, directions=self.directions, ddir=self.dth, dsii=self.dsii
+        )
         return freq, e_freq
 
     def to_directional_spectrum_1d(self):
@@ -264,22 +271,28 @@ class SpectrumConverter:
         Returns:
             tuple: (directions, e_dir)
         """
-        conversion_factor = self.omega * (2.0 * np.pi) / (self.cg + SMALL)
-        e_dir = np.sum(
-            self.action * conversion_factor[np.newaxis, :] * self.dsii[np.newaxis, :],
-            axis=1
+        # Delegate to existing spectrum_converter function
+        dirs, e_dir = sc.action_to_directional_spectrum_1d(
+            self.action, self.omega, self.cg,
+            dintegral=self.dden, directions=self.directions, ddir=self.dth, dsii=self.dsii
         )
-        return self.directions, e_dir
+        return dirs, e_dir
 
     def get_peak_frequency(self):
         """Get peak frequency from spectrum."""
-        freq, e_freq = self.to_frequency_spectrum_1d()
-        return freq[np.argmax(e_freq)]
+        # Delegate to existing spectrum_converter function
+        return sc.get_peak_frequency(
+            self.action, self.omega, self.cg,
+            dintegral=self.dden, directions=self.directions, ddir=self.dth, dsii=self.dsii
+        )
 
     def get_peak_direction(self):
         """Get peak direction from spectrum."""
-        dirs, e_dir = self.to_directional_spectrum_1d()
-        return dirs[np.argmax(e_dir)]
+        # Delegate to existing spectrum_converter function
+        return sc.get_peak_direction(
+            self.action, self.omega, self.cg,
+            dintegral=self.dden, directions=self.directions, ddir=self.dth, dsii=self.dsii
+        )
 
     def normalize(self, target_energy=None):
         """Normalize 2D energy spectrum to target energy."""
