@@ -71,7 +71,7 @@ hs = converter.compute_wave_parameters()['hs']
 
 ---
 
-### Pattern 3: WW3 Optimized (All parameters pre-computed)
+### Pattern 3: WW3 Optimized (All parameters pre-computed via explicit parameters)
 
 ```python
 from wavewatch_python import SpectrumConverter, build_ww3_grid
@@ -102,6 +102,53 @@ hs = converter.compute_wave_parameters(fte=grid['fte'])['hs']
 
 ---
 
+### Pattern 4: WW3 Optimized (All parameters via dictionary - Cleaner API)
+
+```python
+from wavewatch_python import SpectrumConverter, build_ww3_grid
+from wavewatch_python.dispersion import solve_dispersion
+import numpy as np
+
+# Pre-compute ALL parameters
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+omega = grid['sigma']
+wn = np.array([solve_dispersion(omega[i], 100.0)[0] for i in range(len(omega))])
+cg = np.array([solve_dispersion(omega[i], 100.0)[1] for i in range(len(omega))])
+
+# Your action density from WW3
+action = load_action_spectrum('data.nc')
+
+# Pass all pre-computed WW3 parameters via dict (cleaner!)
+converter = SpectrumConverter(
+    action,
+    omega=omega,
+    group_velocity=cg,
+    depth=100.0,
+    ww3_params={
+        'dden': grid['dden'],          # Conversion factors
+        'wn': wn,                       # Wavenumber
+        'fte': grid['fte'],             # Tail factors
+        'fttr': grid.get('fttr'),       # (optional)
+        'ftwl': grid.get('ftwl')        # (optional)
+    }
+)
+
+# Most efficient - uses all pre-computed parameters
+energy_2d, freq, dirs = converter.to_energy_2d()
+hs = converter.compute_wave_parameters()['hs']
+```
+
+**Use when**: You want maximum efficiency with cleaner, more readable code
+
+**ww3_params Keys** (all optional):
+- `'dden'` or `'dintegral'`: Pre-computed DDEN factors (DTH × DSII × SIG)
+- `'wn'` or `'wavenumber'`: Pre-computed wavenumber [1/m]
+- `'fte'`: Energy tail factor
+- `'fttr'`: Period tail factor (defaults to fte × 0.20 if not provided)
+- `'ftwl'`: Wavelength tail factor
+
+---
+
 ## API Reference
 
 ### Initialization
@@ -122,7 +169,11 @@ converter = SpectrumConverter(
     group_velocity=None,     # Group velocity [m/s]
     dintegral=None,          # DDEN factors (optional)
     wavenumber=None,         # Wavenumber [1/m] (optional)
-    directions=None          # Direction grid [radians]
+    directions=None,         # Direction grid [radians]
+
+    # Option C: Pass WW3 parameters via dict (cleaner API)
+    ww3_params=None          # Dict with keys: 'dden'/'dintegral', 'wn'/'wavenumber',
+                             # 'fte', 'fttr', 'ftwl'
 )
 ```
 
@@ -201,7 +252,8 @@ Where:
 |---------|------|------|----------|
 | **Generic** | Simple, clean, no WW3 knowledge needed | Slightly slower (computes everything) | Non-WW3 data, learning |
 | **Pre-ω,cg** | Good balance of simplicity + efficiency | Still computes DSII, wavenumber | Most WW3 workflows |
-| **Optimized** | Maximum efficiency, skips all redundant computation | Requires pre-computing everything | High-performance batch processing |
+| **Optimized (explicit)** | Maximum efficiency, skips all redundant computation | Verbose parameter list | High-performance batch processing |
+| **Optimized (dict)** | Maximum efficiency + clean code with dict API | Requires pre-computing everything | Production-quality code |
 
 ---
 
@@ -279,6 +331,43 @@ for i in range(1000):
 
     params = converter.compute_wave_parameters(fte=grid['fte'])
     # ... process results
+```
+
+### Example 4: Batch Processing (ww3_params Dictionary - Cleaner)
+
+```python
+from wavewatch_python import SpectrumConverter, build_ww3_grid
+from wavewatch_python.dispersion import solve_dispersion
+import numpy as np
+
+# Pre-compute ALL parameters once
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+omega = grid['sigma']
+wn = np.array([solve_dispersion(omega[i], 100.0)[0] for i in range(len(omega))])
+cg = np.array([solve_dispersion(omega[i], 100.0)[1] for i in range(len(omega))])
+
+# Use ww3_params dict for cleaner API
+ww3_params = {
+    'dden': grid['dden'],
+    'wn': wn,
+    'fte': grid['fte']
+}
+
+# Process many spectra efficiently (cleaner code!)
+results = []
+for i in range(1000):
+    action = load_action_spectrum(i)
+
+    converter = SpectrumConverter(
+        action,
+        omega=omega,
+        group_velocity=cg,
+        depth=100.0,
+        ww3_params=ww3_params
+    )
+
+    params = converter.compute_wave_parameters()
+    results.append(params)
 ```
 
 ---

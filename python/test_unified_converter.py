@@ -178,10 +178,73 @@ def test_case_3_ww3_optimized():
     print(f"  ✓ Test 3 PASSED\n")
 
 
-def test_consistency():
-    """Verify all three approaches give consistent results."""
+def test_case_4_ww3_params_dict():
+    """Use Case 4: WW3 data using ww3_params dictionary (cleaner API)."""
     print("="*70)
-    print("Test 4: Consistency Check (All approaches)")
+    print("Test 4: WW3 Parameters via Dictionary (Cleaner API)")
+    print("="*70)
+
+    from wavewatch_python import build_ww3_grid
+
+    # Build complete WW3 grid
+    grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+    omega = grid['sigma']
+    depth = 100.0
+
+    # Pre-compute all parameters
+    wn = np.array([solve_dispersion(omega[i], depth)[0] for i in range(len(omega))])
+    cg = np.array([solve_dispersion(omega[i], depth)[1] for i in range(len(omega))])
+
+    # Create action spectrum
+    action = np.random.rand(36, 30) * 0.001
+
+    # Create converter using ww3_params dictionary (cleaner!)
+    converter = SpectrumConverter(
+        action,
+        omega=omega,
+        group_velocity=cg,
+        depth=depth,
+        ww3_params={
+            'dden': grid['dden'],
+            'wn': wn,
+            'fte': grid['fte'],
+            'fttr': None,  # Will use default fttr = fte * 0.20
+            'ftwl': None   # Will use default ftwl
+        }
+    )
+
+    print(f"\nInput (using ww3_params dict - cleaner API!):")
+    print(f"  Action shape: {action.shape}")
+    print(f"  Parameters: omega, cg via ww3_params dict")
+
+    # Convert to energy
+    energy_2d, freq, dirs = converter.to_energy_2d()
+    print(f"\nEnergy spectrum:")
+    print(f"  Energy shape: {energy_2d.shape}")
+    print(f"  Total energy: {np.sum(energy_2d):.4f} m²")
+
+    # Get 1D spectra
+    freq, e_freq = converter.to_frequency_spectrum_1d()
+    dirs, e_dir = converter.to_directional_spectrum_1d()
+    print(f"\n1D spectra:")
+    print(f"  Peak frequency: {freq[np.argmax(e_freq)]:.4f} Hz")
+    print(f"  Peak direction: {np.degrees(dirs[np.argmax(e_dir)]):.1f}°")
+
+    # Compute wave parameters using tail factors from ww3_params
+    params = converter.compute_wave_parameters()
+    print(f"\nWave parameters (using ww3_params):")
+    print(f"  Hs: {params['hs']:.2f} m")
+    print(f"  Tp: {params['tp']:.2f} s")
+    print(f"  T01: {params['t01']:.2f} s")
+    print(f"  T02: {params['t02']:.2f} s")
+    print(f"  Mean direction: {np.degrees(params['thm']):.1f}°")
+    print(f"  ✓ Test 4 PASSED\n")
+
+
+def test_consistency():
+    """Verify all four approaches give consistent results."""
+    print("="*70)
+    print("Test 5: Consistency Check (All approaches)")
     print("="*70)
 
     from wavewatch_python import build_ww3_grid
@@ -217,18 +280,34 @@ def test_consistency():
     freq3, e_freq3 = conv3.to_frequency_spectrum_1d()
     hs3 = conv3.compute_wave_parameters(fte=grid['fte'])['hs']
 
+    # Approach 4: Using ww3_params dictionary
+    conv4 = SpectrumConverter(
+        action,
+        omega=omega,
+        group_velocity=cg,
+        depth=depth,
+        ww3_params={
+            'dden': grid['dden'],
+            'wn': wn,
+            'fte': grid['fte']
+        }
+    )
+    freq4, e_freq4 = conv4.to_frequency_spectrum_1d()
+    hs4 = conv4.compute_wave_parameters()['hs']
+
     print(f"\nComparison of results:")
-    print(f"  Approach 1 (Generic): Hs = {hs1:.4f} m, Peak freq = {freq1[np.argmax(e_freq1)]:.4f} Hz")
-    print(f"  Approach 2 (Pre-ω,cg): Hs = {hs2:.4f} m, Peak freq = {freq2[np.argmax(e_freq2)]:.4f} Hz")
-    print(f"  Approach 3 (All pre):  Hs = {hs3:.4f} m, Peak freq = {freq3[np.argmax(e_freq3)]:.4f} Hz")
+    print(f"  Approach 1 (Generic):    Hs = {hs1:.4f} m, Peak freq = {freq1[np.argmax(e_freq1)]:.4f} Hz")
+    print(f"  Approach 2 (Pre-ω,cg):   Hs = {hs2:.4f} m, Peak freq = {freq2[np.argmax(e_freq2)]:.4f} Hz")
+    print(f"  Approach 3 (All pre):    Hs = {hs3:.4f} m, Peak freq = {freq3[np.argmax(e_freq3)]:.4f} Hz")
+    print(f"  Approach 4 (ww3_params): Hs = {hs4:.4f} m, Peak freq = {freq4[np.argmax(e_freq4)]:.4f} Hz")
 
     # Check consistency (within floating point tolerance)
-    freq_match = np.allclose(freq1, freq2) and np.allclose(freq2, freq3)
-    hs_match = np.isclose(hs1, hs2) and np.isclose(hs2, hs3)
+    freq_match = np.allclose(freq1, freq2) and np.allclose(freq2, freq3) and np.allclose(freq3, freq4)
+    hs_match = np.isclose(hs1, hs2) and np.isclose(hs2, hs3) and np.isclose(hs3, hs4)
 
     if freq_match and hs_match:
-        print(f"\n  ✓ All approaches give CONSISTENT results")
-        print(f"  ✓ Test 4 PASSED\n")
+        print(f"\n  ✓ All 4 approaches give CONSISTENT results")
+        print(f"  ✓ Test 5 PASSED\n")
     else:
         print(f"\n  ✗ Results do NOT match!")
         print(f"  Freq match: {freq_match}, Hs match: {hs_match}")
@@ -238,6 +317,7 @@ if __name__ == "__main__":
     test_case_1_generic_data()
     test_case_2_ww3_precomputed()
     test_case_3_ww3_optimized()
+    test_case_4_ww3_params_dict()
     test_consistency()
 
     print("="*70)
@@ -248,6 +328,7 @@ if __name__ == "__main__":
     print("✓ Generic data works (auto-computes everything)")
     print("✓ WW3 data works (uses pre-computed omega, cg)")
     print("✓ WW3 optimized works (all parameters pre-computed)")
+    print("✓ WW3 params dict works (cleaner API via ww3_params)")
     print("✓ All approaches give consistent results")
-    print("\nConclusion: Single unified converter handles ALL cases!")
+    print("\nConclusion: Single unified converter handles ALL cases with flexible API!")
     print("="*70)

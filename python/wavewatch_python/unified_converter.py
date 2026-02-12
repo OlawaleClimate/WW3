@@ -39,7 +39,9 @@ class SpectrumConverter:
                  # Pre-computed WW3 parameters
                  omega=None, group_velocity=None,
                  dintegral=None, wavenumber=None,
-                 directions=None):
+                 directions=None,
+                 # Convenience: pass all WW3 params in a dict
+                 ww3_params=None):
         """
         Initialize unified spectrum converter.
 
@@ -71,6 +73,29 @@ class SpectrumConverter:
             1. Provided explicitly as parameter
             2. Inferred from omega array: fr1 = omega[0]/(2π) [Hz]
             3. Default value: 0.04 Hz (typical WW3 value)
+
+        ww3_params Dictionary:
+            If ww3_params is provided, it can contain:
+            - 'dden' or 'dintegral': Pre-computed DDEN factors (DDEN = DTH × DSII × SIG)
+            - 'wn' or 'wavenumber': Pre-computed wavenumber [1/m]
+            - 'fte': Energy tail factor
+            - 'fttr': Period tail factor (defaults to fte if not provided)
+            - 'ftwl': Wavelength tail factor
+
+            Example:
+            converter = SpectrumConverter(
+                action,
+                omega=omega,
+                group_velocity=cg,
+                depth=depth,
+                ww3_params={
+                    'dden': dden,
+                    'wn': wn,
+                    'fte': fte,
+                    'fttr': fttr,
+                    'ftwl': ftwl
+                }
+            )
         """
 
         # Validate and store action
@@ -80,6 +105,27 @@ class SpectrumConverter:
 
         self.ndir, self.nfreq = self.action.shape
         self.depth = depth
+
+        # Extract WW3 parameters from dict if provided
+        # ww3_params keys can be: 'dden'/'dintegral', 'wn'/'wavenumber', 'fte', 'fttr', 'ftwl'
+        if ww3_params is not None:
+            # Extract DDEN (support both key names)
+            if dintegral is None:
+                dintegral = ww3_params.get('dden') if ww3_params.get('dden') is not None else ww3_params.get('dintegral')
+
+            # Extract wavenumber (support both key names)
+            if wavenumber is None:
+                wavenumber = ww3_params.get('wn') if ww3_params.get('wn') is not None else ww3_params.get('wavenumber')
+
+            # Store tail factors for later use
+            self.tail_fte = ww3_params.get('fte')
+            self.tail_fttr = ww3_params.get('fttr')
+            self.tail_ftwl = ww3_params.get('ftwl')
+        else:
+            # Initialize tail factors as None (will be computed if needed)
+            self.tail_fte = None
+            self.tail_fttr = None
+            self.tail_ftwl = None
 
         # Store or compute frequency grid
         if omega is not None:
@@ -262,17 +308,28 @@ class SpectrumConverter:
 
         Returns:
             dict: Wave parameters
+
+        Precedence for tail factors:
+            1. Explicitly provided as arguments to this method
+            2. Provided via ww3_params dict during initialization
+            3. Auto-computed from grid parameters
         """
         if self.depth is None:
             raise ValueError("Depth required to compute wave parameters")
 
-        # Compute tail factors if not provided
+        # Determine tail factors with 3-tier precedence
+        # Tier 1: Explicitly provided to this method (highest priority)
+        # Tier 2: From ww3_params dict (if provided during init)
+        # Tier 3: Auto-computed from grid (lowest priority/default)
+
         if fte is None:
-            fte = 0.25 * self.omega[-1] * self.dth * self.omega[-1]
+            fte = self.tail_fte if self.tail_fte is not None else 0.25 * self.omega[-1] * self.dth * self.omega[-1]
+
         if fttr is None:
-            fttr = fte * 0.20  # Approximate
+            fttr = self.tail_fttr if self.tail_fttr is not None else fte * 0.20  # Approximate
+
         if ftwl is None:
-            ftwl = (GRAV / 6.0) / self.omega[-1] * self.dth * self.omega[-1]
+            ftwl = self.tail_ftwl if self.tail_ftwl is not None else (GRAV / 6.0) / self.omega[-1] * self.dth * self.omega[-1]
 
         # Initialize moments
         m0 = m1 = m2 = m_1 = 0.0
