@@ -43,6 +43,7 @@ __author__ = "Claude"
 from .spectrum import WaveSpectrum
 from .dispersion import solve_dispersion, compute_wavelength, compute_group_velocity_deep_water
 from .spectrum_converter import (
+    build_ww3_grid,
     action_to_energy_2d,
     action_to_frequency_spectrum_1d,
     action_to_directional_spectrum_1d,
@@ -60,6 +61,7 @@ __all__ = [
     'solve_dispersion',
     'compute_wavelength',
     'compute_group_velocity_deep_water',
+    'build_ww3_grid',
     'action_to_energy_2d',
     'action_to_frequency_spectrum_1d',
     'action_to_directional_spectrum_1d',
