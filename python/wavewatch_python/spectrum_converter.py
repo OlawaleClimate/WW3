@@ -129,11 +129,14 @@ def action_to_directional_spectrum_1d(action, omega, group_velocity, dintegral=N
 
     Integrates action density over all frequencies to produce a directional spectrum.
 
+    Uses the same conversion formula as 2D energy:
+      E(θ) = ∑_f [A(θ,f) × SIG × (2π / CG)]
+
     Arguments:
         action (ndarray): Action density (ndir, nfreq) [m²·s·rad⁻¹]
         omega (ndarray): Angular frequency [rad/s]
         group_velocity (ndarray): Group velocity [m/s]
-        dintegral (ndarray, optional): Integration factors
+        dintegral (ndarray, optional): Deprecated - not used
         directions (ndarray, optional): Direction grid [radians]
         ddir (float, optional): Directional spacing [radians]
 
@@ -152,29 +155,24 @@ def action_to_directional_spectrum_1d(action, omega, group_velocity, dintegral=N
     omega = np.atleast_1d(np.asarray(omega, dtype=float))
     group_velocity = np.atleast_1d(np.asarray(group_velocity, dtype=float))
 
+    # Validate dimensions
+    if len(omega) != nfreq:
+        raise ValueError(f"omega length ({len(omega)}) != nfreq ({nfreq})")
+    if len(group_velocity) != nfreq:
+        raise ValueError(f"group_velocity length ({len(group_velocity)}) != nfreq ({nfreq})")
+
     # Generate or use provided direction grid
     if directions is None:
         directions = np.linspace(0, 2*np.pi, ndir, endpoint=False)
     else:
         directions = np.atleast_1d(np.asarray(directions, dtype=float))
 
-    # Compute or use provided directional spacing
-    if ddir is None:
-        ddir = 2.0 * np.pi / ndir
+    # CORRECT CONVERSION FORMULA:
+    # E(θ) = ∑_f [A(θ,f) × σ × (2π / CG)]
+    # Where: σ = SIG = intrinsic (angular) frequency = omega
+    conversion_factor = omega * (2.0 * np.pi) / (group_velocity + SMALL)
 
-    # Compute or use provided integration factors
-    if dintegral is None:
-        dintegral = _compute_dintegral(omega, ndir)
-
-    dintegral = np.atleast_1d(np.asarray(dintegral, dtype=float))
-
-    # Convert action to energy per frequency bin
-    # E_freq = A × (DDEN / CG) for each frequency
-    conversion_factor = dintegral / (group_velocity + SMALL)
-
-    # Integrate over frequencies (sum all frequencies)
-    # Note: Frequency bandwidth is already included in DDEN, so we just sum
-    # without additional multiplication by dfreq
+    # Integrate over frequencies (sum all frequencies with conversion applied)
     e_dir = np.sum(action * conversion_factor[np.newaxis, :], axis=1)
 
     return directions, e_dir
@@ -246,64 +244,3 @@ def get_peak_direction(action_2d, directions):
     peak_idx = np.argmax(dir_spectrum)
 
     return directions[peak_idx]
-
-
-def _compute_dintegral(omega, ndir):
-    """
-    Compute integration factors DDEN from angular frequency.
-
-    Approximates DDEN = DTH × DSII × SIG where:
-    - DTH = 2π / ndir (directional spacing)
-    - DSII = frequency bandwidth
-    - SIG = omega (angular frequency)
-
-    Arguments:
-        omega (ndarray): Angular frequency array
-        ndir (int): Number of directional bins
-
-    Returns:
-        ndarray: Integration factors DDEN
-    """
-
-    nfreq = len(omega)
-    dth = 2.0 * np.pi / ndir
-
-    # Compute frequency bandwidth
-    dfreq = _compute_dfreq(omega)
-
-    # Full integration factor
-    dintegral = dth * dfreq * omega
-
-    return dintegral
-
-
-def _compute_dfreq(omega):
-    """
-    Compute frequency bandwidth from angular frequency array.
-
-    Uses central differences between adjacent frequencies.
-
-    Arguments:
-        omega (ndarray): Angular frequency array
-
-    Returns:
-        ndarray: Frequency bandwidth at each bin
-    """
-
-    nfreq = len(omega)
-    dfreq = np.zeros(nfreq)
-
-    if nfreq == 1:
-        dfreq[0] = 1.0
-    else:
-        # First bin: half-distance to next
-        dfreq[0] = (omega[1] - omega[0]) / 2.0
-
-        # Interior bins: central differences
-        for i in range(1, nfreq - 1):
-            dfreq[i] = (omega[i+1] - omega[i-1]) / 2.0
-
-        # Last bin: half-distance from previous
-        dfreq[-1] = (omega[-1] - omega[-2]) / 2.0
-
-    return dfreq
