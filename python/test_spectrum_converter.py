@@ -274,7 +274,7 @@ def test_comparison_with_spectrum_class():
     print("Test 6: Verification Against WaveSpectrum Class")
     print("="*70)
 
-    from wavewatch_python.spectrum_ww3_only import WaveSpectrum
+    from wavewatch_python import WaveSpectrum
 
     # Setup
     nfreq, ndir = 30, 36
