@@ -56,16 +56,21 @@ class SpectrumConverter:
 
         Arguments:
             action (ndarray): Action density spectrum (ndir, nfreq) [m²·s·rad⁻¹]
-            depth (float): Water depth [m] - required unless omega/cg provided
-            fr1 (float): First frequency [Hz] - for auto-generation
-            xfr (float): Frequency increment - for auto-generation
-            nk (int): Number of frequency bins - for auto-generation
-            nth (int): Number of directional bins - for auto-generation
+            depth (float): Water depth [m] - required for cg computation if not provided
+            fr1 (float): First frequency [Hz] - default 0.04 Hz if not provided
+            xfr (float): Frequency increment - default 1.1 if not provided
+            nk (int): Number of frequency bins - inferred from action shape if not provided
+            nth (int): Number of directional bins - inferred from action shape if not provided
             omega (ndarray): Pre-computed angular frequencies [rad/s]
             group_velocity (ndarray): Pre-computed group velocity [m/s]
             dintegral (ndarray): Pre-computed DDEN factors
             wavenumber (ndarray): Pre-computed wavenumber [1/m]
             directions (ndarray): Direction grid [radians]
+
+        How fr1 is determined (in order of precedence):
+            1. Provided explicitly as parameter
+            2. Inferred from omega array: fr1 = omega[0]/(2π) [Hz]
+            3. Default value: 0.04 Hz (typical WW3 value)
         """
 
         # Validate and store action
@@ -81,6 +86,17 @@ class SpectrumConverter:
             self.omega = np.atleast_1d(np.asarray(omega, dtype=float))
             if len(self.omega) != self.nfreq:
                 raise ValueError(f"omega length {len(self.omega)} != nfreq {self.nfreq}")
+            # Infer fr1 and xfr from omega
+            if len(self.omega) > 1:
+                # Estimate xfr from frequency ratio
+                self.xfr = self.omega[1] / self.omega[0]
+                # Estimate fr1 (first frequency in Hz)
+                # omega[0] = 2π × fr1
+                self.fr1 = self.omega[0] / TPI
+            else:
+                # Single frequency - use defaults
+                self.fr1 = 0.04
+                self.xfr = 1.1
         elif fr1 is not None and xfr is not None and nk is not None:
             if nk != self.nfreq:
                 raise ValueError(f"nk {nk} != nfreq {self.nfreq}")
@@ -93,7 +109,23 @@ class SpectrumConverter:
             self.fr1 = fr1
             self.xfr = xfr
         else:
-            raise ValueError("Must provide either omega or (fr1, xfr, nk)")
+            # Default: Use typical WW3 values if minimal info provided
+            # Use WW3 defaults: fr1=0.04 Hz, xfr=1.1
+            DEFAULT_FR1 = 0.04
+            DEFAULT_XFR = 1.1
+
+            # nk comes from action shape (already determined)
+            nk = self.nfreq
+
+            self.fr1 = DEFAULT_FR1
+            self.xfr = DEFAULT_XFR
+
+            # Build frequency grid with defaults
+            sigma_start = self.fr1 * TPI / (self.xfr**2)
+            self.omega = np.zeros(nk)
+            for ik in range(nk):
+                sigma_start *= self.xfr
+                self.omega[ik] = sigma_start
 
         # Store or compute group velocity
         if group_velocity is not None:
