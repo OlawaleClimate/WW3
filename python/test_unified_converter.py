@@ -241,6 +241,62 @@ def test_case_4_ww3_params_dict():
     print(f"  ✓ Test 4 PASSED\n")
 
 
+def test_build_ww3_grid_with_depth():
+    """Test build_ww3_grid convenience feature: auto-compute wavenumber and group velocity."""
+    print("="*70)
+    print("Test 5: build_ww3_grid with depth parameter (auto-compute wn, cg)")
+    print("="*70)
+
+    from wavewatch_python import build_ww3_grid
+
+    depth = 100.0
+    fr1 = 0.04
+    xfr = 1.1
+    nk = 30
+    nth = 36
+
+    # Build grid WITHOUT depth (old way - still works)
+    grid_no_depth = build_ww3_grid(fr1=fr1, xfr=xfr, nk=nk, nth=nth)
+    print(f"\nWithout depth parameter:")
+    print(f"  Keys: {list(grid_no_depth.keys())}")
+    has_wn = 'wavenumber' in grid_no_depth
+    has_cg = 'group_velocity' in grid_no_depth
+    print(f"  Has wavenumber: {has_wn}")
+    print(f"  Has group_velocity: {has_cg}")
+
+    # Build grid WITH depth (new convenience feature!)
+    grid_with_depth = build_ww3_grid(fr1=fr1, xfr=xfr, nk=nk, nth=nth, depth=depth)
+    print(f"\nWith depth parameter (NEW - cleaner!):")
+    print(f"  Keys: {list(grid_with_depth.keys())}")
+    has_wn = 'wavenumber' in grid_with_depth
+    has_cg = 'group_velocity' in grid_with_depth
+    print(f"  Has wavenumber: {has_wn}")
+    print(f"  Has group_velocity: {has_cg}")
+
+    if has_wn and has_cg:
+        wn = grid_with_depth['wavenumber']
+        cg = grid_with_depth['group_velocity']
+        omega = grid_with_depth['sigma']
+
+        print(f"\n  Wavenumber shape: {wn.shape}")
+        print(f"    Range: {wn[0]:.6f} - {wn[-1]:.6f} [1/m]")
+        print(f"  Group velocity shape: {cg.shape}")
+        print(f"    Range: {cg[0]:.3f} - {cg[-1]:.3f} [m/s]")
+
+        # Verify they match manual computation
+        print(f"\n  Verification (manual vs grid):")
+        for i in [0, nk//2, -1]:
+            wn_manual, cg_manual = solve_dispersion(omega[i], depth)
+            wn_grid = wn[i]
+            cg_grid = cg[i]
+            print(f"    Freq index {i:2d}: wn_match={np.isclose(wn_manual, wn_grid)}, "
+                  f"cg_match={np.isclose(cg_manual, cg_grid)}")
+
+        print(f"\n  ✓ Test 5 PASSED - build_ww3_grid auto-computes wavenumber and group velocity!\n")
+    else:
+        print(f"  ✗ Test 5 FAILED - wavenumber or group_velocity not in grid\n")
+
+
 def test_consistency():
     """Verify all four approaches give consistent results."""
     print("="*70)
@@ -258,29 +314,29 @@ def test_consistency():
     nth = 36
     action = np.random.rand(nth, nk) * 0.001
 
-    # Build grid for comparison
-    grid = build_ww3_grid(fr1=fr1, xfr=xfr, nk=nk, nth=nth)
+    # Build grid with depth (auto-computes wavenumber & group velocity!)
+    grid = build_ww3_grid(fr1=fr1, xfr=xfr, nk=nk, nth=nth, depth=depth)
 
     # Approach 1: Generic (auto-compute)
     conv1 = SpectrumConverter(action, depth=depth, fr1=fr1, xfr=xfr, nk=nk, nth=nth)
     freq1, e_freq1 = conv1.to_frequency_spectrum_1d()
     hs1 = conv1.compute_wave_parameters()['hs']
 
-    # Approach 2: Pre-computed omega and cg
+    # Approach 2: Pre-computed omega and cg (from grid)
     omega = grid['sigma']
-    cg = np.array([solve_dispersion(omega[i], depth)[1] for i in range(len(omega))])
+    cg = grid['group_velocity']  # Now directly from grid (no need to compute manually!)
     conv2 = SpectrumConverter(action, omega=omega, group_velocity=cg, depth=depth)
     freq2, e_freq2 = conv2.to_frequency_spectrum_1d()
     hs2 = conv2.compute_wave_parameters()['hs']
 
-    # Approach 3: All pre-computed
-    wn = np.array([solve_dispersion(omega[i], depth)[0] for i in range(len(omega))])
+    # Approach 3: All pre-computed (from grid)
+    wn = grid['wavenumber']  # Now directly from grid (no need to compute manually!)
     conv3 = SpectrumConverter(action, omega=omega, group_velocity=cg,
                              dintegral=grid['dden'], wavenumber=wn, depth=depth)
     freq3, e_freq3 = conv3.to_frequency_spectrum_1d()
     hs3 = conv3.compute_wave_parameters(fte=grid['fte'])['hs']
 
-    # Approach 4: Using ww3_params dictionary
+    # Approach 4: Using ww3_params dictionary (from grid)
     conv4 = SpectrumConverter(
         action,
         omega=omega,
@@ -318,6 +374,7 @@ if __name__ == "__main__":
     test_case_2_ww3_precomputed()
     test_case_3_ww3_optimized()
     test_case_4_ww3_params_dict()
+    test_build_ww3_grid_with_depth()
     test_consistency()
 
     print("="*70)
@@ -329,6 +386,7 @@ if __name__ == "__main__":
     print("✓ WW3 data works (uses pre-computed omega, cg)")
     print("✓ WW3 optimized works (all parameters pre-computed)")
     print("✓ WW3 params dict works (cleaner API via ww3_params)")
+    print("✓ build_ww3_grid auto-computes wavenumber & group velocity with depth")
     print("✓ All approaches give consistent results")
     print("\nConclusion: Single unified converter handles ALL cases with flexible API!")
     print("="*70)

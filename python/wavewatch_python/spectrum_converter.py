@@ -15,7 +15,7 @@ import numpy as np
 from .constants import GRAV, TPI, SMALL
 
 
-def build_ww3_grid(fr1, xfr, nk, nth):
+def build_ww3_grid(fr1, xfr, nk, nth, depth=None):
     """
     Build WW3 spectral grid arrays (mirrors w3gridmd.F90).
 
@@ -27,6 +27,8 @@ def build_ww3_grid(fr1, xfr, nk, nth):
         xfr (float): Frequency increment factor (geometric ratio)
         nk (int): Number of frequency bins
         nth (int): Number of directional bins
+        depth (float, optional): Water depth [m]. If provided, automatically
+                                computes wavenumber and group velocity.
 
     Returns:
         dict with keys:
@@ -37,6 +39,8 @@ def build_ww3_grid(fr1, xfr, nk, nth):
             'dsii' : Frequency bandwidth array [rad/s]
             'dden' : DDEN = DTH × DSII × SIG (conversion factor)
             'fte' : Tail energy factor
+            'wavenumber' : Wavenumber array [1/m] (only if depth provided)
+            'group_velocity' : Group velocity array [m/s] (only if depth provided)
     """
     dth = TPI / nth
 
@@ -66,7 +70,7 @@ def build_ww3_grid(fr1, xfr, nk, nth):
     # Tail energy factor
     fte = 0.25 * sigma[-1] * dth * sigma[-1]
 
-    return {
+    result = {
         'freq': freq,
         'sigma': sigma,
         'theta': theta,
@@ -75,6 +79,18 @@ def build_ww3_grid(fr1, xfr, nk, nth):
         'dden': dden,
         'fte': fte,
     }
+
+    # Optionally compute wavenumber and group velocity if depth is provided
+    if depth is not None:
+        from .dispersion import solve_dispersion
+        wn = np.zeros(nk)
+        cg = np.zeros(nk)
+        for ik in range(nk):
+            wn[ik], cg[ik] = solve_dispersion(sigma[ik], depth)
+        result['wavenumber'] = wn
+        result['group_velocity'] = cg
+
+    return result
 
 
 def action_to_energy_2d(action, omega, group_velocity, dintegral=None,

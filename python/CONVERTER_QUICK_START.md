@@ -41,13 +41,21 @@ from wavewatch_python.spectrum_converter import (
 ```python
 from wavewatch_python import build_ww3_grid
 
-# Typical WW3 grid parameters
+# Basic grid (without depth)
 grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
 
 # Access grid parameters
 freq = grid['freq']          # Frequencies [Hz]
 sigma = grid['sigma']        # Angular frequencies [rad/s]
 dsii = grid['dsii']          # Frequency bandwidths [rad/s]
+dden = grid['dden']          # DDEN conversion factors
+
+# NEW: Also auto-compute wavenumber and group velocity by providing depth!
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=100.0)
+
+# Now grid includes:
+wn = grid['wavenumber']      # Wavenumber [1/m] (auto-computed!)
+cg = grid['group_velocity']  # Group velocity [m/s] (auto-computed!)
 dth = grid['dth']            # Directional bin width [rad]
 fte = grid['fte']            # Tail energy factor
 ```

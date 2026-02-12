@@ -257,6 +257,43 @@ Where:
 
 ---
 
+## Convenience: Auto-compute Wavenumber and Group Velocity
+
+WW3 parameters like **wavenumber** can be precomputed from grid parameters, but require **water depth**.
+
+`build_ww3_grid()` now supports this automatically:
+
+```python
+from wavewatch_python import build_ww3_grid
+
+# Without depth: just basic grid
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+# Returns: freq, sigma, dsii, dden, fte (no wavenumber/group_velocity)
+
+# With depth: auto-compute wavenumber and group velocity!
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=100.0)
+# Returns: freq, sigma, dsii, dden, fte, wavenumber, group_velocity
+```
+
+This eliminates the need to manually compute dispersion for every pattern:
+
+**Before** (manual):
+```python
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+omega = grid['sigma']
+wn = np.array([solve_dispersion(omega[i], 100.0)[0] for i in range(len(omega))])
+cg = np.array([solve_dispersion(omega[i], 100.0)[1] for i in range(len(omega))])
+```
+
+**After** (cleaner):
+```python
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=100.0)
+wn = grid['wavenumber']
+cg = grid['group_velocity']
+```
+
+---
+
 ## Examples
 
 ### Example 1: Simple Analysis
@@ -277,18 +314,17 @@ print(f"Peak frequency: {converter.get_peak_frequency():.2f} Hz")
 print(f"Peak direction: {np.degrees(converter.get_peak_direction()):.1f}°")
 ```
 
-### Example 2: WW3 Workflow
+### Example 2: WW3 Workflow (Using auto-computed grid)
 
 ```python
 from wavewatch_python import SpectrumConverter, build_ww3_grid
-from wavewatch_python.dispersion import solve_dispersion
 import numpy as np
 
-# From WW3 simulation
-grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
-omega = grid['sigma']
+# From WW3 simulation (NOW with auto-computed wavenumber & group velocity!)
 depth = 50.0
-cg = np.array([solve_dispersion(omega[i], depth)[1] for i in range(len(omega))])
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=depth)
+omega = grid['sigma']
+cg = grid['group_velocity']  # Auto-computed!
 
 # Your action density from WW3
 action = load_from_ww3_netcdf('wave.nc')
@@ -307,14 +343,13 @@ print(f"Direction: {np.degrees(params['thm']):.1f}°")
 
 ```python
 from wavewatch_python import SpectrumConverter, build_ww3_grid
-from wavewatch_python.dispersion import solve_dispersion
 import numpy as np
 
-# Pre-compute ALL parameters once
-grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+# Pre-compute ALL parameters once (using convenient depth parameter!)
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=100.0)
 omega = grid['sigma']
-wn = np.array([solve_dispersion(omega[i], 100.0)[0] for i in range(len(omega))])
-cg = np.array([solve_dispersion(omega[i], 100.0)[1] for i in range(len(omega))])
+wn = grid['wavenumber']  # Auto-computed!
+cg = grid['group_velocity']  # Auto-computed!
 
 # Process many spectra efficiently
 for i in range(1000):
@@ -337,14 +372,13 @@ for i in range(1000):
 
 ```python
 from wavewatch_python import SpectrumConverter, build_ww3_grid
-from wavewatch_python.dispersion import solve_dispersion
 import numpy as np
 
-# Pre-compute ALL parameters once
-grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+# Pre-compute ALL parameters once (using convenient depth parameter!)
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=100.0)
 omega = grid['sigma']
-wn = np.array([solve_dispersion(omega[i], 100.0)[0] for i in range(len(omega))])
-cg = np.array([solve_dispersion(omega[i], 100.0)[1] for i in range(len(omega))])
+wn = grid['wavenumber']  # Auto-computed!
+cg = grid['group_velocity']  # Auto-computed!
 
 # Use ww3_params dict for cleaner API
 ww3_params = {
