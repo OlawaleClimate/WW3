@@ -16,20 +16,16 @@ This package provides:
 python/
 ├── wavewatch_python/              # Main package
 │   ├── __init__.py               # Package exports
-│   ├── spectrum_converter.py      # Core conversion functions (NEW - UPDATED)
-│   ├── spectrum.py               # Full-featured WaveSpectrum class
-│   ├── spectrum_ww3_only.py      # Streamlined WW3-only WaveSpectrum
+│   ├── spectrum_converter.py      # Core converter: functions + SpectrumConverter class
+│   ├── spectrum.py               # Full-featured WaveSpectrum class (legacy)
 │   ├── dispersion.py             # Dispersion relation solver
 │   ├── constants.py              # Physical constants
 │   ├── README.md                 # Package documentation
-│   ├── SPECTRUM_CONVERTER_GUIDE.md
-│   ├── SPECTRUM_WW3_ONLY_GUIDE.md
-│   └── WW3_INTEGRATION.md
+│   └── UNIFIED_CONVERTER_GUIDE.md # SpectrumConverter API reference
 ├── test_spectrum_converter.py    # Test suite for spectrum converter
-├── test_spectrum_ww3_only.py     # Test suite for WaveSpectrum
 ├── CONVERTER_QUICK_START.md      # Quick start guide (UPDATED)
-├── SPECTRUM_CONVERTER_UPDATE.md  # Latest implementation changes (NEW)
-├── SPECTRUM_MODULES_COMPARISON.md # Comparison of spectrum modules
+├── SPECTRUM_CONVERTER_UPDATE.md  # Latest implementation changes
+├── UNIFIED_CONVERTER_GUIDE.md    # Unified SpectrumConverter guide
 └── WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md # Detailed physics explanation
 ```
 
@@ -76,25 +72,43 @@ print(f"Peak frequency: {freq[np.argmax(np.sum(energy_2d, axis=0))]:.4f} Hz")
 
 ### For Users Starting Out
 - **[CONVERTER_QUICK_START.md](CONVERTER_QUICK_START.md)** - Quick reference with common tasks and examples
-- **[SPECTRUM_MODULES_COMPARISON.md](SPECTRUM_MODULES_COMPARISON.md)** - Choose between `spectrum.py` and `spectrum_ww3_only.py`
+- **[UNIFIED_CONVERTER_GUIDE.md](UNIFIED_CONVERTER_GUIDE.md)** - Complete SpectrumConverter API reference
 
 ### For Understanding Implementation Details
 - **[SPECTRUM_CONVERTER_UPDATE.md](SPECTRUM_CONVERTER_UPDATE.md)** - Latest changes and physics corrections
 - **[WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md](WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md)** - Complete physics explanation with Fortran references
 
-### For API Reference
-- **[wavewatch_python/SPECTRUM_CONVERTER_GUIDE.md](wavewatch_python/SPECTRUM_CONVERTER_GUIDE.md)** - Full spectrum_converter.py API
-- **[wavewatch_python/SPECTRUM_WW3_ONLY_GUIDE.md](wavewatch_python/SPECTRUM_WW3_ONLY_GUIDE.md)** - Full WaveSpectrum API
-- **[wavewatch_python/README.md](wavewatch_python/README.md)** - Package overview
-
 ### For Learning with Examples
 - **[test_spectrum_converter.py](test_spectrum_converter.py)** - 6 comprehensive test cases
-- **[wavewatch_python/WW3_INTEGRATION.md](wavewatch_python/WW3_INTEGRATION.md)** - Integration examples
 
-## 🔧 Core Functions
+## 🔧 Main API
 
-### `spectrum_converter.py` - Coordinate Transformation
-Converts action density spectra between coordinate systems with proper physics.
+### `SpectrumConverter` - Unified, Flexible Class (RECOMMENDED)
+Single converter that intelligently handles WW3 and generic data with flexible parameters.
+
+```python
+from wavewatch_python import SpectrumConverter, build_ww3_grid
+
+# Pattern 1: Generic data (auto-compute everything)
+converter = SpectrumConverter(action, depth=100.0, fr1=0.04, xfr=1.1, nk=30, nth=36)
+
+# Pattern 2: WW3 data (use pre-computed omega, cg)
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=100.0)
+converter = SpectrumConverter(action, omega=grid['sigma'], group_velocity=grid['group_velocity'], depth=100.0)
+
+# Pattern 3: Optimized (all parameters pre-computed via dict)
+converter = SpectrumConverter(
+    action, depth=100.0,
+    ww3_params={'dden': dden, 'wn': wn, 'fte': fte}
+)
+
+# All patterns give identical results
+energy_2d, freq, dirs = converter.to_energy_2d()
+params = converter.compute_wave_parameters()
+```
+
+### `spectrum_converter.py` - Low-Level Functions
+Core conversion functions for advanced users who need maximum control.
 
 ```python
 from wavewatch_python import (
@@ -108,47 +122,12 @@ from wavewatch_python import (
 ```
 
 **Key Functions:**
-- `build_ww3_grid(fr1, xfr, nk, nth)` - Build frequency/directional grids
+- `build_ww3_grid(fr1, xfr, nk, nth, depth=None)` - Build frequency/directional grids
 - `action_to_energy_2d(action, omega, cg, ...)` - 2D energy conversion
 - `action_to_frequency_spectrum_1d(action, omega, cg, ...)` - 1D frequency spectrum
 - `action_to_directional_spectrum_1d(action, omega, cg, ...)` - 1D directional spectrum
 - `get_peak_frequency(action, omega, cg)` - Find peak frequency
 - `get_peak_direction(action, omega, cg)` - Find peak direction
-
-### `spectrum.py` - Full-Featured Analysis
-Flexible class supporting multiple input modes for research and development.
-
-```python
-from wavewatch_python import WaveSpectrum
-
-# Method 1: With WW3 parameters (recommended)
-spectrum = WaveSpectrum(
-    action, depth=100.0,
-    omega=omega_ww3, dintegral=dden_ww3,
-    wavenumber=wn_ww3, group_velocity=cg_ww3
-)
-
-# Method 2: Auto-generate with minimal inputs
-spectrum = WaveSpectrum(action, depth=100.0)
-
-params = spectrum.compute_parameters()
-```
-
-### `spectrum_ww3_only.py` - Production Ready
-Streamlined class requiring explicit WW3 parameters for clarity.
-
-```python
-from wavewatch_python.spectrum_ww3_only import WaveSpectrum
-
-spectrum = WaveSpectrum(
-    action=action, depth=depth,
-    omega=omega_ww3, dintegral=dden_ww3,
-    fte=fte_ww3, fttr=fttr_ww3, ftwl=ftwl_ww3,
-    wavenumber=wn_ww3, group_velocity=cg_ww3
-)
-
-params = spectrum.compute_parameters()
-```
 
 ### `dispersion.py` - Wave Physics
 Compute wavenumber and group velocity from dispersion relations.
@@ -214,14 +193,14 @@ See **[SPECTRUM_CONVERTER_UPDATE.md](SPECTRUM_CONVERTER_UPDATE.md)** for details
 
 ## 🎯 Use Cases
 
-| Task | Module | Example |
-|------|--------|---------|
+| Task | Approach | Example |
+|------|----------|---------|
+| Start here | `SpectrumConverter` (Pattern 1) | Auto-compute from grid params |
+| WW3 workflows | `SpectrumConverter` (Pattern 2-3) | Use pre-computed grid |
+| Wave parameters | `SpectrumConverter` | `.compute_wave_parameters()` |
+| Advanced/low-level | `spectrum_converter.py` functions | Direct function calls |
 | Quick conversion | `spectrum_converter.py` | `action_to_energy_2d()` |
 | Peak detection | `spectrum_converter.py` | `get_peak_frequency()` |
-| Wave parameters | `spectrum.py` or `spectrum_ww3_only.py` | `compute_parameters()` |
-| Research/testing | `spectrum.py` | Multiple input modes |
-| Production WW3 | `spectrum_ww3_only.py` | Explicit parameters |
-| Batch processing | `spectrum_converter.py` | Vectorized operations |
 
 ## 🌊 Wave Parameters Computed
 
@@ -260,22 +239,20 @@ When making changes:
 ## 📝 File Descriptions
 
 ### Core Implementation Files
-- `spectrum_converter.py` - Pure spectral transformation (UPDATED v2.0)
-- `spectrum.py` - Full-featured WaveSpectrum class
-- `spectrum_ww3_only.py` - Streamlined WaveSpectrum
+- `spectrum_converter.py` - Unified converter: core functions + SpectrumConverter class
+- `spectrum.py` - Original WaveSpectrum class (legacy, for backward compatibility)
 - `dispersion.py` - Dispersion relation solvers
 - `constants.py` - Physical constants (GRAV, TPI, etc.)
 
 ### Documentation Files
-- `CONVERTER_QUICK_START.md` - For users new to spectrum conversion (UPDATED)
-- `SPECTRUM_CONVERTER_UPDATE.md` - Implementation details of v2.0 (NEW)
+- `CONVERTER_QUICK_START.md` - Quick start with examples (UPDATED)
+- `UNIFIED_CONVERTER_GUIDE.md` - Complete SpectrumConverter API reference (NEW)
+- `SPECTRUM_CONVERTER_UPDATE.md` - Implementation details and physics
 - `WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md` - Physics deep-dive
-- `SPECTRUM_MODULES_COMPARISON.md` - When to use which module
 - `README.md` (this file) - Master overview
 
 ### Test Files
-- `test_spectrum_converter.py` - Tests for spectrum_converter functions
-- `test_spectrum_ww3_only.py` - Tests for WaveSpectrum class
+- `test_spectrum_converter.py` - Tests for spectrum converter and SpectrumConverter class
 
 ## ⚠️ Backward Compatibility
 
