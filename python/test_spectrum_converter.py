@@ -218,8 +218,8 @@ def test_peak_detection():
     print(f"    Direction index: {peak_dir_idx} → {np.degrees(directions[peak_dir_idx]):.1f}°")
 
     # Detect peaks
-    peak_freq = get_peak_frequency(action, frequencies)
-    peak_dir = get_peak_direction(action, directions)
+    peak_freq = get_peak_frequency(action, omega_ww3, cg_ww3, directions=directions)
+    peak_dir = get_peak_direction(action, omega_ww3, cg_ww3, directions=directions)
 
     print(f"\nDetected peaks:")
     print(f"  Peak frequency: {peak_freq:.4f} Hz (index {np.argmax(np.sum(action, axis=0))})")
