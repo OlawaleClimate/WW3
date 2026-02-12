@@ -51,12 +51,14 @@ from .spectrum_converter import (
     get_peak_direction,
     normalize_spectrum
 )
+from .unified_converter import SpectrumConverter
 from .constants import (
     GRAV, TPI, TPIINV, RADE, DEGRAD,
     DEFAULT_NK, DEFAULT_NTH, DEFAULT_FR1, DEFAULT_XFR
 )
 
 __all__ = [
+    'SpectrumConverter',
     'WaveSpectrum',
     'solve_dispersion',
     'compute_wavelength',
