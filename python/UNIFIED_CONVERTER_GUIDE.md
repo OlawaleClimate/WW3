@@ -408,19 +408,20 @@ for i in range(1000):
 
 ## Comparison: Old vs New
 
-### Before (Fragmented API)
+### Before (Fragmented API - Multiple Modules)
 
 ```python
-# For WW3 data - had to use spectrum_ww3_only.py
-from wavewatch_python.spectrum_ww3_only import WaveSpectrum
-spectrum = WaveSpectrum(action, depth, omega, dden, fte, fttr, ftwl, wn, cg)
+# For WW3 data - had to use spectrum.py WaveSpectrum
+from wavewatch_python import WaveSpectrum
+spectrum = WaveSpectrum(action, depth, omega=omega, dintegral=dden,
+                       wavenumber=wn, group_velocity=cg)
 params = spectrum.compute_parameters()
 
-# For generic data - had to use spectrum_converter.py
+# For generic data - had to use spectrum_converter.py functions
 from wavewatch_python import action_to_energy_2d, action_to_frequency_spectrum_1d
 energy_2d, freq, dirs, _ = action_to_energy_2d(action, omega, cg)
 
-# Different APIs, different approaches, confusing!
+# Different APIs, required learning multiple modules!
 ```
 
 ### After (Unified API)

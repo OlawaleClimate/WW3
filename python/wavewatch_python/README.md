@@ -10,9 +10,8 @@ This package contains the core WW3 spectral analysis tools:
 
 | Module | Purpose | Use Case |
 |--------|---------|----------|
-| **`spectrum_converter.py`** | Coordinate transformation (A(k,θ) → E(f,θ)) | Quick spectrum conversion |
-| **`spectrum.py`** | Full-featured WaveSpectrum class | Research & flexible analysis |
-| **`spectrum_ww3_only.py`** | Production-ready WaveSpectrum | Operational WW3 workflows |
+| **`spectrum_converter.py`** | Core converter: functions + SpectrumConverter class | Unified API for all workflows |
+| **`spectrum.py`** | Full-featured WaveSpectrum class | Legacy support & backward compatibility |
 | **`dispersion.py`** | Dispersion relation solvers | Wavenumber & group velocity |
 | **`constants.py`** | Physical constants | All calculations |
 
@@ -45,11 +44,10 @@ energy_2d, freq, dirs, grid_params = action_to_energy_2d(
 
 **Quick Reference:**
 - Start here: **[../CONVERTER_QUICK_START.md](../CONVERTER_QUICK_START.md)**
-- Module comparison: **[../SPECTRUM_MODULES_COMPARISON.md](../SPECTRUM_MODULES_COMPARISON.md)**
+- Unified SpectrumConverter guide: **[../UNIFIED_CONVERTER_GUIDE.md](../UNIFIED_CONVERTER_GUIDE.md)**
 
 **API Reference:**
 - `spectrum_converter.py`: **[SPECTRUM_CONVERTER_GUIDE.md](SPECTRUM_CONVERTER_GUIDE.md)**
-- `spectrum_ww3_only.py`: **[SPECTRUM_WW3_ONLY_GUIDE.md](SPECTRUM_WW3_ONLY_GUIDE.md)**
 
 **Physics & Integration:**
 - Complete physics guide: **[../WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md](../WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md)**
@@ -72,29 +70,40 @@ from wavewatch_python import (
 )
 ```
 
-### Wave Spectrum Analysis
+### Unified Spectrum Converter (RECOMMENDED)
 
-**Flexible approach (spectrum.py):**
+**SpectrumConverter** provides a flexible, unified API for all workflows:
+
+```python
+from wavewatch_python import SpectrumConverter, build_ww3_grid
+
+# Pattern 1: Generic data (auto-compute everything)
+converter = SpectrumConverter(action, depth=100.0, fr1=0.04, xfr=1.1, nk=30, nth=36)
+
+# Pattern 2: WW3 data (use pre-computed parameters)
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36, depth=100.0)
+converter = SpectrumConverter(action, omega=grid['sigma'],
+                             group_velocity=grid['group_velocity'], depth=100.0)
+
+# Pattern 3: Optimized (all parameters via dict)
+converter = SpectrumConverter(
+    action, depth=100.0,
+    ww3_params={'dden': dden, 'wn': wn, 'fte': fte}
+)
+
+# All patterns support the same API
+params = converter.compute_wave_parameters()
+```
+
+### Wave Spectrum Analysis (Legacy)
+
+**Original WaveSpectrum (for backward compatibility):**
 ```python
 from wavewatch_python import WaveSpectrum
 
 # With WW3 parameters
 spectrum = WaveSpectrum(action, depth=100.0,
                        omega=omega, dintegral=dden)
-
-# Or minimal (auto-generated)
-spectrum = WaveSpectrum(action, depth=100.0)
-
-params = spectrum.compute_parameters()
-```
-
-**Production approach (spectrum_ww3_only.py):**
-```python
-from wavewatch_python.spectrum_ww3_only import WaveSpectrum
-
-spectrum = WaveSpectrum(action=action, depth=depth,
-                       omega=omega, dintegral=dden,
-                       wavenumber=wn, group_velocity=cg)
 
 params = spectrum.compute_parameters()
 ```
@@ -178,15 +187,12 @@ Tests verify:
 ```
 wavewatch_python/
 ├── __init__.py                    # Package exports
-├── spectrum_converter.py          # Core conversion (v2.0)
-├── spectrum.py                    # Full-featured class
-├── spectrum_ww3_only.py          # Production class
+├── spectrum_converter.py          # Unified converter: functions + SpectrumConverter class
+├── spectrum.py                    # Full-featured WaveSpectrum (legacy)
 ├── dispersion.py                  # Dispersion solvers
 ├── constants.py                   # Physical constants
 ├── README.md                      # This file
-├── SPECTRUM_CONVERTER_GUIDE.md    # API reference
-├── SPECTRUM_WW3_ONLY_GUIDE.md     # API reference
-└── WW3_INTEGRATION.md             # Integration guide
+└── SPECTRUM_CONVERTER_GUIDE.md    # API reference
 ```
 
 ## 📚 References

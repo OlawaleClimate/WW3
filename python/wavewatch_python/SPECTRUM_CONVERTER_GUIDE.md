@@ -352,22 +352,26 @@ Therefore, when extracting 1D spectra from the 2D energy, you simply sum without
 
 ## Integration with WaveSpectrum Class
 
-The converter is standalone but compatible with `WaveSpectrum`:
+For full wave parameter computation with tail factors, use `SpectrumConverter`:
 
 ```python
-from wavewatch_python.spectrum_converter import action_to_energy_2d
-from wavewatch_python.spectrum_ww3_only import WaveSpectrum
+from wavewatch_python.spectrum_converter import (
+    action_to_energy_2d,
+    SpectrumConverter
+)
 
-# Method 1: Use converter directly (faster for just energy)
+# Method 1: Use functions directly (fast, no tail factors)
 energy, freq, dirs, _ = action_to_energy_2d(
     action, omega_ww3, cg_ww3
 )
 
-# Method 2: Use WaveSpectrum for full analysis (includes tail)
-spectrum = WaveSpectrum(action, depth, omega_ww3, dden_ww3,
-                        fte_ww3, fttr_ww3, ftwl_ww3,
-                        wn_ww3, cg_ww3)
-params = spectrum.compute_parameters()
+# Method 2: Use SpectrumConverter (flexible, includes tail factors)
+converter = SpectrumConverter(
+    action, depth=depth,
+    omega=omega_ww3, group_velocity=cg_ww3,
+    ww3_params={'dden': dden_ww3, 'wn': wn_ww3, 'fte': fte_ww3}
+)
+params = converter.compute_wave_parameters()
 ```
 
 **Key Differences:**
