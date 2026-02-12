@@ -5,12 +5,12 @@
 Converts **action density spectra** (from WW3 simulations) to **energy density spectra** in various coordinate systems.
 
 ```
-Action Density A(f,θ)
-    ↓ (×DDEN/CG)
-Energy Density E(f,θ)
-    ├→ 2D energy spectrum
-    ├→ 1D frequency spectrum
-    └→ 1D directional spectrum
+Action Density A(k,θ)    [wavenumber-direction space]
+    ↓ (coordinate transform & Jacobian)
+Energy Density E(f,θ)    [frequency-direction space]
+    ├→ 2D energy spectrum: E(f,θ)
+    ├→ 1D frequency spectrum: E(f)
+    └→ 1D directional spectrum: E(θ)
 ```
 
 ## Installation
@@ -18,13 +18,14 @@ Energy Density E(f,θ)
 The converter is included in the `wavewatch_python` package:
 
 ```python
-from wavewatch_python import action_to_energy_2d
+from wavewatch_python import action_to_energy_2d, build_ww3_grid
 ```
 
 Or import individual functions:
 
 ```python
 from wavewatch_python.spectrum_converter import (
+    build_ww3_grid,
     action_to_energy_2d,
     action_to_frequency_spectrum_1d,
     action_to_directional_spectrum_1d,
@@ -35,15 +36,32 @@ from wavewatch_python.spectrum_converter import (
 
 ## Basic Usage
 
+### Build WW3 Grid
+
+```python
+from wavewatch_python import build_ww3_grid
+
+# Typical WW3 grid parameters
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+
+# Access grid parameters
+freq = grid['freq']          # Frequencies [Hz]
+sigma = grid['sigma']        # Angular frequencies [rad/s]
+dsii = grid['dsii']          # Frequency bandwidths [rad/s]
+dth = grid['dth']            # Directional bin width [rad]
+fte = grid['fte']            # Tail energy factor
+```
+
 ### Convert 2D Action to Energy
 
 ```python
 import numpy as np
-from wavewatch_python import action_to_energy_2d
+from wavewatch_python import build_ww3_grid, action_to_energy_2d
 from wavewatch_python.dispersion import solve_dispersion
 
-# WW3 parameters
-omega_ww3 = 2*np.pi * 0.04 * 1.1**np.arange(30)  # Frequency grid
+# Build WW3 grid
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+omega_ww3 = grid['sigma']
 depth = 100.0
 
 # Compute group velocity
@@ -55,12 +73,13 @@ for i in range(30):
 action = np.random.rand(36, 30) * 0.001  # Your WW3 data
 
 # Convert to energy
-energy_2d, freq, dirs, dden = action_to_energy_2d(
+energy_2d, freq, dirs, grid_params = action_to_energy_2d(
     action, omega_ww3, cg_ww3
 )
 
 print(f"Energy shape: {energy_2d.shape}")
 print(f"Total energy: {np.sum(energy_2d):.2f} m²")
+print(f"Frequency range: {freq[0]:.4f} - {freq[-1]:.4f} Hz")
 ```
 
 ### Get 1D Frequency Spectrum
@@ -72,10 +91,10 @@ freq, e_freq = action_to_frequency_spectrum_1d(
     action, omega_ww3, cg_ww3
 )
 
-# Plot or analyze
+# Find peak
 peak_freq = freq[np.argmax(e_freq)]
-print(f"Peak frequency: {peak_freq:.4f} Hz")
-print(f"Peak period: {1/peak_freq:.2f} s")
+peak_period = 1.0 / peak_freq if peak_freq > 0 else 0.0
+print(f"Peak frequency: {peak_freq:.4f} Hz ({peak_period:.2f} s)")
 ```
 
 ### Get 1D Directional Spectrum
@@ -100,8 +119,8 @@ print(f"Mean direction: {np.degrees(mean_dir):.1f}°")
 ```python
 from wavewatch_python import get_peak_frequency, get_peak_direction
 
-peak_freq = get_peak_frequency(action, freq)
-peak_dir = get_peak_direction(action, dirs)
+peak_freq = get_peak_frequency(action, omega_ww3, cg_ww3)
+peak_dir = get_peak_direction(action, omega_ww3, cg_ww3)
 
 print(f"Peak: {peak_freq:.4f} Hz @ {np.degrees(peak_dir):.1f}°")
 ```
@@ -115,14 +134,14 @@ energy_2d, _, _, _ = action_to_energy_2d(action, omega_ww3, cg_ww3)
 
 # Scale to specific energy
 normalized = normalize_spectrum(energy_2d, target_energy=5.0)
-print(f"Total energy: {np.sum(normalized):.2f} m²")
+print(f"Total energy after normalization: {np.sum(normalized):.2f} m²")
 ```
 
 ### Compare with WaveSpectrum Class
 
 ```python
 # For quick conversion only
-energy, freq, dirs, _ = action_to_energy_2d(action, omega_ww3, cg_ww3)
+energy_2d, freq, dirs, _ = action_to_energy_2d(action, omega_ww3, cg_ww3)
 
 # For full analysis with wave parameters
 from wavewatch_python import WaveSpectrum
@@ -135,48 +154,54 @@ params = spectrum.compute_parameters()  # HS, T01, mean dir, etc.
 
 | Function | Input | Output | Use Case |
 |----------|-------|--------|----------|
-| `action_to_energy_2d` | 2D action | 2D energy | Full spectrum analysis |
-| `action_to_frequency_spectrum_1d` | 2D action | 1D freq | Peak frequency, spectral shape |
-| `action_to_directional_spectrum_1d` | 2D action | 1D dir | Mean direction, spread |
-| `get_peak_frequency` | 2D action | float | Quick peak detection |
-| `get_peak_direction` | 2D action | float | Quick peak detection |
+| `build_ww3_grid` | fr1, xfr, nk, nth | Grid dict | Build frequency/directional grids |
+| `action_to_energy_2d` | 2D action | 2D energy + grids | Full spectrum analysis |
+| `action_to_frequency_spectrum_1d` | 2D action | 1D freq spectrum | Peak frequency, spectral shape |
+| `action_to_directional_spectrum_1d` | 2D action | 1D directional spectrum | Mean direction, spread |
+| `get_peak_frequency` | 2D action | float | Quick peak frequency detection |
+| `get_peak_direction` | 2D action | float | Quick peak direction detection |
 | `normalize_spectrum` | 2D energy | 2D energy | Scale to target energy |
 
 ## Parameters Needed
 
 From WW3:
-- **action**: 2D array (ndir, nfreq) - your spectral data
-- **omega**: Angular frequencies from SIG array
+- **action**: 2D array (ndir, nfreq) - your action density data
+- **omega**: Angular frequencies from SIG array [rad/s]
 - **group_velocity**: From CG computation (or use `solve_dispersion`)
 - **depth**: Water depth for dispersion relation
 
 Optional:
-- **dintegral**: Pre-computed DDEN factors (auto-computed if not provided)
-- **directions**: Direction grid (auto-generated if not provided)
+- **directions**: Direction grid in radians (auto-generated if not provided)
+- **ddir**: Directional bin width (auto-computed if not provided)
+- **dsii**: Frequency bandwidths (auto-computed if not provided)
 
 ## Physical Meaning
 
-The conversion formula combines the action-to-energy relationship with coordinate transformation:
+The conversion transforms action density from wavenumber-direction space to energy density in frequency-direction space:
+
 ```
 E(f,θ) = A(k,θ) × σ × (2π / CG)
-        = A(k,θ) × SIG × (2π / CG)
+       = A(k,θ) × SIG × (2π / CG)
 ```
 
-Where:
+**Key Relationships:**
 - **E(f,θ)**: Energy density in frequency-direction space [m²/Hz/rad]
 - **A(k,θ)**: Action density in wavenumber-direction space [m²·s·rad⁻¹]
-- **A(k,θ) = F(k,θ) / σ** (action = energy / intrinsic frequency)
+- **Action-Energy**: A(k,θ) = F(k,θ) / σ (action = energy / intrinsic frequency)
 - **σ = SIG**: Intrinsic (angular) frequency [rad/s] from WW3
 - **∂k/∂f = 2π/CG**: Jacobian of the (k,θ) → (f,θ) transformation
 - **CG**: Group velocity [m/s]
 
-**KEY POINT**: The σ factor is essential—it comes from F = A × σ. Directional (DTH) and frequency (DSII) binning factors are NOT part of the conversion—they're only used when integrating discrete spectra over bins.
+**Integration to 1D Spectra:**
+- **1D Frequency**: E(f) = ∑_θ E(f,θ) × DTH (includes directional bin width)
+- **1D Directional**: E(θ) = ∑_f E(f,θ) × DSII[f] (includes frequency bandwidths)
 
-## Full Documentation
+## Related Documentation
 
-For detailed API reference, examples, and mathematical background, see:
-- `SPECTRUM_CONVERTER_GUIDE.md` - Complete reference
-- `test_spectrum_converter.py` - Test examples
+For detailed information, see:
+- `SPECTRUM_CONVERTER_UPDATE.md` - Latest implementation changes
+- `python/wavewatch_python/SPECTRUM_CONVERTER_GUIDE.md` - Complete API reference
+- `test_spectrum_converter.py` - Working examples and test suite
 
 ## Performance
 
@@ -192,11 +217,15 @@ For detailed API reference, examples, and mathematical background, see:
 **Error**: `ValueError: group_velocity length != nfreq`
 - **Fix**: Ensure CG array matches action frequency bins
 
+**Error**: Peak detection returns wrong values
+- **Fix**: Ensure omega and group_velocity are correctly computed for your depth
+
 **Warning**: Results don't match WaveSpectrum
-- **Note**: Converter excludes tail extension by default. Use WaveSpectrum for full analysis.
+- **Note**: Converter excludes tail extension by default. Use WaveSpectrum for full analysis with tail.
 
 ## Next Steps
 
-1. Try the test: `python test_spectrum_converter.py`
-2. Read full guide: `SPECTRUM_CONVERTER_GUIDE.md`
-3. Check examples in test suite or WW3_INTEGRATION.md
+1. Run the test suite: `python test_spectrum_converter.py`
+2. Read full implementation details: `SPECTRUM_CONVERTER_UPDATE.md`
+3. Check API reference: `python/wavewatch_python/SPECTRUM_CONVERTER_GUIDE.md`
+4. Explore test examples: `test_spectrum_converter.py`

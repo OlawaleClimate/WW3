@@ -1,6 +1,234 @@
 # WaveWatch Python Package
 
-A Python implementation of wave parameter computation from action density spectrum, based on WaveWatch III (WW3) model algorithms.
+A Python implementation of WaveWatch III (WW3) algorithms for converting action density spectra to wave energy spectra and computing wave parameters.
+
+## 📦 What's Included
+
+This package contains the core WW3 spectral analysis tools:
+
+### Core Modules
+
+| Module | Purpose | Use Case |
+|--------|---------|----------|
+| **`spectrum_converter.py`** | Coordinate transformation (A(k,θ) → E(f,θ)) | Quick spectrum conversion |
+| **`spectrum.py`** | Full-featured WaveSpectrum class | Research & flexible analysis |
+| **`spectrum_ww3_only.py`** | Production-ready WaveSpectrum | Operational WW3 workflows |
+| **`dispersion.py`** | Dispersion relation solvers | Wavenumber & group velocity |
+| **`constants.py`** | Physical constants | All calculations |
+
+### What's New (v2.0)
+
+- ✅ **`build_ww3_grid()`** function for proper grid construction
+- ✅ **Corrected DSII** computation with special cases
+- ✅ **Proper bin-width integration** (DTH, DSII) in 1D spectra
+- ✅ **Updated peak detection** with correct API
+- ✅ **Full alignment** with w3iogomd.F90 and w3gridmd.F90
+
+See **[../SPECTRUM_CONVERTER_UPDATE.md](../SPECTRUM_CONVERTER_UPDATE.md)** for details.
+
+## 🚀 Quick Start
+
+```python
+from wavewatch_python import build_ww3_grid, action_to_energy_2d
+import numpy as np
+
+# Build grid
+grid = build_ww3_grid(fr1=0.04, xfr=1.1, nk=30, nth=36)
+
+# Convert spectra
+energy_2d, freq, dirs, grid_params = action_to_energy_2d(
+    action, grid['sigma'], group_velocity
+)
+```
+
+## 📚 Documentation
+
+**Quick Reference:**
+- Start here: **[../CONVERTER_QUICK_START.md](../CONVERTER_QUICK_START.md)**
+- Module comparison: **[../SPECTRUM_MODULES_COMPARISON.md](../SPECTRUM_MODULES_COMPARISON.md)**
+
+**API Reference:**
+- `spectrum_converter.py`: **[SPECTRUM_CONVERTER_GUIDE.md](SPECTRUM_CONVERTER_GUIDE.md)**
+- `spectrum_ww3_only.py`: **[SPECTRUM_WW3_ONLY_GUIDE.md](SPECTRUM_WW3_ONLY_GUIDE.md)**
+
+**Physics & Integration:**
+- Complete physics guide: **[../WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md](../WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md)**
+- Integration examples: **[WW3_INTEGRATION.md](WW3_INTEGRATION.md)**
+- Implementation changes: **[../SPECTRUM_CONVERTER_UPDATE.md](../SPECTRUM_CONVERTER_UPDATE.md)**
+
+## 🔧 Main Functions
+
+### Spectrum Conversion (spectrum_converter.py)
+
+```python
+from wavewatch_python import (
+    build_ww3_grid,                      # Build frequency/directional grids
+    action_to_energy_2d,                 # Convert to 2D energy
+    action_to_frequency_spectrum_1d,     # Get 1D frequency spectrum
+    action_to_directional_spectrum_1d,   # Get 1D directional spectrum
+    get_peak_frequency,                  # Find peak frequency
+    get_peak_direction,                  # Find peak direction
+    normalize_spectrum                   # Scale to target energy
+)
+```
+
+### Wave Spectrum Analysis
+
+**Flexible approach (spectrum.py):**
+```python
+from wavewatch_python import WaveSpectrum
+
+# With WW3 parameters
+spectrum = WaveSpectrum(action, depth=100.0,
+                       omega=omega, dintegral=dden)
+
+# Or minimal (auto-generated)
+spectrum = WaveSpectrum(action, depth=100.0)
+
+params = spectrum.compute_parameters()
+```
+
+**Production approach (spectrum_ww3_only.py):**
+```python
+from wavewatch_python.spectrum_ww3_only import WaveSpectrum
+
+spectrum = WaveSpectrum(action=action, depth=depth,
+                       omega=omega, dintegral=dden,
+                       wavenumber=wn, group_velocity=cg)
+
+params = spectrum.compute_parameters()
+```
+
+### Dispersion Relations
+
+```python
+from wavewatch_python import solve_dispersion
+
+wavenumber, group_velocity = solve_dispersion(omega, depth)
+```
+
+## 📊 Physics Overview
+
+The package implements the WW3 spectral analysis chain:
+
+```
+Input:  A(k,θ)  [Action density, conserved]
+           ↓
+     Coordinate transform
+     (Jacobian: 2π/CG)
+           ↓
+Output: E(f,θ)  [Energy density, derived]
+           ↓
+     Integration with bin widths
+     (DTH for directions, DSII for frequencies)
+           ↓
+Results: Hs, Tp, θm, σθ, etc.
+```
+
+## 📖 Key Concepts
+
+### Action Density vs Energy Density
+
+- **Action**: A(k,θ) = F(k,θ) / σ [m²·s·rad⁻¹]
+- **Energy**: E(f,θ) [m²/Hz/rad]
+- **Conversion**: E = A × σ × (2π/CG)
+
+### Grid Parameters
+
+From WW3 grid setup (w3gridmd.F90):
+- **SIG**: Intrinsic angular frequencies [rad/s]
+- **DTH**: Directional bin width [rad]
+- **DSII**: Frequency bandwidths [rad/s] (log-spaced)
+- **DDEN**: Combined factor = DTH × DSII × SIG
+
+### Wave Parameters Computed
+
+| Parameter | Formula | Units |
+|-----------|---------|-------|
+| Significant Wave Height | Hs = 4√m₀ | m |
+| Peak Period | Tp = 1/fp | s |
+| Mean Period | Tm01 = 2π(m₀/m₁) | s |
+| Mean Direction | θm = arctan2(Sy, Sx) | rad |
+| Directional Spread | σθ = √(2(1-m1)) | rad |
+
+## ✅ Testing
+
+Run comprehensive test suite:
+
+```bash
+python ../test_spectrum_converter.py
+```
+
+Tests verify:
+- ✓ 2D action → energy conversion
+- ✓ 1D frequency spectrum
+- ✓ 1D directional spectrum
+- ✓ Peak detection
+- ✓ Normalization
+- ✓ Verification against WaveSpectrum class
+
+## 🔗 Dependencies
+
+- **numpy**: Array operations
+- **scipy** (optional): Advanced numerical methods
+- **matplotlib** (optional): Plotting
+
+## 📝 File Structure
+
+```
+wavewatch_python/
+├── __init__.py                    # Package exports
+├── spectrum_converter.py          # Core conversion (v2.0)
+├── spectrum.py                    # Full-featured class
+├── spectrum_ww3_only.py          # Production class
+├── dispersion.py                  # Dispersion solvers
+├── constants.py                   # Physical constants
+├── README.md                      # This file
+├── SPECTRUM_CONVERTER_GUIDE.md    # API reference
+├── SPECTRUM_WW3_ONLY_GUIDE.md     # API reference
+└── WW3_INTEGRATION.md             # Integration guide
+```
+
+## 📚 References
+
+- **WW3 Manual**: https://github.com/NOAA-EMC/WW3/wiki
+- **Source Code**:
+  - w3gridmd.F90 - Grid initialization
+  - w3iogomd.F90 - I/O and moment calculations
+  - w3dispmd.F90 - Dispersion relations
+- **Physics**: Hasselmann et al. (1973), Whitham (1974)
+
+## ⚠️ Important Notes
+
+### Physics Corrections in v2.0
+
+- DSII now properly computed with special cases for first/last bins
+- DTH correctly included in 1D frequency spectrum integration
+- DSII correctly included in 1D directional spectrum integration
+- All formulas match w3iogomd.F90 exactly
+
+### API Changes from v1.0
+
+- `action_to_energy_2d()` now returns grid_params dict
+- `get_peak_frequency()` and `get_peak_direction()` need omega, group_velocity
+
+See **[../SPECTRUM_CONVERTER_UPDATE.md](../SPECTRUM_CONVERTER_UPDATE.md)** for migration.
+
+## 🤝 Contributing
+
+When modifying this package:
+1. Update corresponding test cases
+2. Verify against WW3 Fortran algorithms
+3. Update documentation
+4. Run full test suite
+5. Commit with clear message
+
+## 📞 Questions?
+
+- Check test examples: `../test_spectrum_converter.py`
+- Read physics guide: `../WW3_WAVE_PARAMETERS_COMPLETE_GUIDE.md`
+- See API docs: `SPECTRUM_CONVERTER_GUIDE.md`
+
 
 ## Features
 
