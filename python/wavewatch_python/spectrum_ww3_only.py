@@ -1,10 +1,15 @@
 """
 Wave spectrum processing for WW3 pre-computed grid parameters.
 
-Streamlined module for computing spectral moments from action density spectrum
-using pre-computed WW3 grid parameters (SIG, DDEN, WN, CG, tail factors).
+Streamlined, production-ready module for computing spectral moments from action
+density spectrum using pre-computed WW3 grid parameters (SIG, DDEN, WN, CG,
+tail factors). Updated in v2.0 to align with spectrum_converter.py physics
+corrections, properly handling coordinate transformations from A(k,θ) to E(f,θ).
 
-Reference: w3iogomd.F90 (W3OUTG subroutine)
+Reference:
+  - w3iogomd.F90 (W3OUTG subroutine)
+  - w3gridmd.F90 (grid initialization)
+  - spectrum_converter.py (coordinate transformation formulas)
 """
 
 import numpy as np
@@ -333,15 +338,28 @@ class WaveSpectrum:
         """
         Extract 1D frequency spectrum by integrating over directions.
 
-        Sums action density over all directions and applies directional step.
+        Follows w3iogomd.F90 frequency spectrum computation:
+        E(f) = ∑_θ [A(θ,f) × (DDEN/CG)] × DTH
+
+        Converts action density to energy density and integrates over directions.
 
         Returns:
             tuple:
                 - freq (ndarray): Frequency array [Hz]
                 - e_freq (ndarray): 1D energy spectrum [m²/Hz]
         """
-        # Integrate over directions
-        e_freq = np.sum(self.action, axis=0) * self.ddir
+        # Direction-integrated action per frequency bin
+        action_band = np.sum(self.action, axis=0)
+
+        # Energy conversion factor: DDEN / CG
+        factor = self.dintegral / (self.group_velocity + SMALL)
+
+        # Energy per frequency band
+        ebd = action_band * factor
+
+        # Integrate over directions with directional bin width
+        # e_freq = EBD × DTH
+        e_freq = ebd * self.ddir
 
         return self.frequencies, e_freq
 
@@ -349,15 +367,22 @@ class WaveSpectrum:
         """
         Extract 1D directional spectrum by integrating over frequencies.
 
-        Integrates action density over frequencies and applies frequency bandwidth.
+        Follows w3iogomd.F90 directional spectrum computation:
+        E(θ) = ∑_f [A(θ,f) × (DDEN/CG)]
+
+        Converts action density to energy density and integrates over frequencies.
 
         Returns:
             tuple:
                 - dirs (ndarray): Direction array [radians]
-                - e_dir (ndarray): 1D energy spectrum [m²/rad]
+                - e_dir (ndarray): 1D directional spectrum [m²/rad]
         """
-        # Integrate over frequencies, applying frequency bandwidth for each
-        # Shape: (ndir, nfreq) → (nfreq,) → (ndir,)
-        e_dir = np.sum(self.action * self.dfreq[np.newaxis, :], axis=1)
+        # Energy conversion factor: DDEN / CG
+        factor = self.dintegral / (self.group_velocity + SMALL)
+
+        # Integrate over frequencies with frequency bandwidth for each
+        # e_dir = ∑_f [A(θ,f) × factor × DSII]
+        # Where DSII is computed from dfreq (frequency bandwidth)
+        e_dir = np.sum(self.action * factor[np.newaxis, :] * self.dfreq[np.newaxis, :], axis=1)
 
         return self.directions, e_dir
