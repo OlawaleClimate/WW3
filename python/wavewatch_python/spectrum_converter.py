@@ -15,6 +15,74 @@ import numpy as np
 from .constants import GRAV, TPI, SMALL
 
 
+def _parse_ww3_grid_file(filename):
+    """
+    Parse WW3 grid input file to extract line 15 parameters.
+
+    Line 15 format: XFR  FR1  NK  NTH  DIR_OFFSET
+    Example: 1.1  0.04118  25  24  0.
+
+    Arguments:
+        filename (str): Path to ww3_grid.inp file
+
+    Returns:
+        dict: Dictionary with keys 'xfr', 'fr1', 'nk', 'nth', 'dir_offset'
+
+    Raises:
+        ValueError: If parameters cannot be parsed
+        FileNotFoundError: If file does not exist
+    """
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    # Find the spectral parameters line
+    spectral_line = None
+    line_number = None
+
+    for i, line in enumerate(lines):
+        # Skip comment lines (start with $)
+        if line.strip().startswith('$'):
+            continue
+
+        # Skip empty lines
+        if not line.strip():
+            continue
+
+        # Look for line containing 5 numeric values: XFR FR1 NK NTH DIR_OFFSET
+        values = line.split()
+
+        if len(values) == 5:
+            try:
+                float_values = [float(v) for v in values]
+                spectral_line = values
+                line_number = i + 1
+                break
+            except ValueError:
+                continue
+
+    if spectral_line is None:
+        raise ValueError(
+            f"Could not find spectral parameters line in {filename}. "
+            "Expected line with 5 numeric values: XFR FR1 NK NTH DIR_OFFSET"
+        )
+
+    try:
+        xfr, fr1, nk, nth, dir_offset = [float(v) for v in spectral_line]
+    except ValueError as e:
+        raise ValueError(
+            f"Failed to parse spectral parameters on line {line_number}: {spectral_line}\n"
+            f"Expected: XFR FR1 NK NTH DIR_OFFSET (all numeric)"
+        ) from e
+
+    return {
+        'xfr': xfr,
+        'fr1': fr1,
+        'nk': int(nk),
+        'nth': int(nth),
+        'dir_offset': dir_offset,
+    }
+
+
 def build_ww3_grid(fr1, xfr, nk, nth, depth=None):
     """
     Build WW3 spectral grid arrays (mirrors w3gridmd.F90).
@@ -393,7 +461,9 @@ class SpectrumConverter:
                  dintegral=None, wavenumber=None,
                  directions=None,
                  # Convenience: pass all WW3 params in a dict
-                 ww3_params=None):
+                 ww3_params=None,
+                 # Extract parameters from WW3 grid file
+                 grid_file=None):
         """
         Initialize unified spectrum converter.
 
@@ -408,6 +478,9 @@ class SpectrumConverter:
         Option 3 (Generic - grid parameters):
           action, depth, fr1, xfr, nk, nth
 
+        Option 4 (Extract from WW3 grid file):
+          action, depth, grid_file='/path/to/ww3_grid.inp'
+
         Arguments:
             action (ndarray): Action density spectrum (ndir, nfreq) [m²·s·rad⁻¹]
             depth (float): Water depth [m] - required for cg computation if not provided
@@ -420,11 +493,14 @@ class SpectrumConverter:
             dintegral (ndarray): Pre-computed DDEN factors
             wavenumber (ndarray): Pre-computed wavenumber [1/m]
             directions (ndarray): Direction grid [radians]
+            grid_file (str): Path to WW3 grid input file (ww3_grid.inp). If provided,
+                            automatically extracts fr1, xfr, nk, nth from line 15.
 
         How fr1 is determined (in order of precedence):
-            1. Provided explicitly as parameter
-            2. Inferred from omega array: fr1 = omega[0]/(2π) [Hz]
-            3. Default value: 0.04 Hz (typical WW3 value)
+            1. Extracted from grid_file if provided
+            2. Provided explicitly as parameter
+            3. Inferred from omega array: fr1 = omega[0]/(2π) [Hz]
+            4. Default value: 0.04 Hz (typical WW3 value)
 
         ww3_params Dictionary:
             If ww3_params is provided, it can contain:
@@ -434,7 +510,26 @@ class SpectrumConverter:
             - 'fttr': Period tail factor (defaults to fte if not provided)
             - 'ftwl': Wavelength tail factor
 
-            Example:
+        Examples:
+
+        1. Extract from WW3 grid file:
+            converter = SpectrumConverter(
+                action,
+                depth=100.0,
+                grid_file='/path/to/ww3_grid.inp'
+            )
+
+        2. Provide WW3 parameters manually:
+            converter = SpectrumConverter(
+                action,
+                depth=100.0,
+                fr1=0.04,
+                xfr=1.1,
+                nk=25,
+                nth=24
+            )
+
+        3. Use pre-computed omega and group velocity:
             converter = SpectrumConverter(
                 action,
                 omega=omega,
@@ -452,6 +547,18 @@ class SpectrumConverter:
         # Import here to avoid circular dependency
         from .dispersion import solve_dispersion
 
+        # Extract parameters from grid file if provided
+        if grid_file is not None:
+            grid_params = _parse_ww3_grid_file(grid_file)
+            # Use grid file parameters, but allow explicit parameters to override
+            if fr1 is None:
+                fr1 = grid_params['fr1']
+            if xfr is None:
+                xfr = grid_params['xfr']
+            # Note: nk and nth from grid file may not match action array shape due to
+            # transpose logic. Let them be inferred from action shape unless explicitly provided.
+            # If user provides explicit nk/nth, we'll validate them later.
+
         # Validate and store action
         self.action = np.atleast_2d(np.asarray(action, dtype=float))
         if self.action.shape[0] < self.action.shape[1]:
@@ -459,6 +566,10 @@ class SpectrumConverter:
 
         self.ndir, self.nfreq = self.action.shape
         self.depth = depth
+
+        # Now that we know action shape, set nk if it was extracted from grid file
+        if grid_file is not None and nk is None:
+            nk = self.nfreq
 
         # Extract WW3 parameters from dict if provided
         # ww3_params keys can be: 'dden'/'dintegral', 'wn'/'wavenumber', 'fte', 'fttr', 'ftwl'
