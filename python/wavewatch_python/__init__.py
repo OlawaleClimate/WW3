@@ -52,6 +52,7 @@ from .spectrum_converter import (
     normalize_spectrum,
     SpectrumConverter
 )
+from .ww3_input_parser import parse_ww3_grid_line, extract_grid_params, print_ww3_params
 from .constants import (
     GRAV, TPI, TPIINV, RADE, DEGRAD,
     DEFAULT_NK, DEFAULT_NTH, DEFAULT_FR1, DEFAULT_XFR
@@ -70,6 +71,9 @@ __all__ = [
     'get_peak_frequency',
     'get_peak_direction',
     'normalize_spectrum',
+    'parse_ww3_grid_line',
+    'extract_grid_params',
+    'print_ww3_params',
     'GRAV',
     'TPI',
     'TPIINV',
